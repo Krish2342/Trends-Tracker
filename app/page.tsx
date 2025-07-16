@@ -1,7 +1,11 @@
 "use client"
 import React, { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+// If the Input component exists elsewhere, update the import path accordingly, for example:
+import { Input } from "../components/ui/input"
+// Or, if the file does not exist, create it at app/components/ui/input.tsx with a basic Input component like below:
+
+// import { Input } from "../components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Search, TrendingUp, Globe, BarChart3, Clock, Shield, Zap, Star, Crown } from "lucide-react"
@@ -91,7 +95,7 @@ export default function HomePage() {
                 type="text"
                 placeholder="Enter a search term for premium insights..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
                 onKeyDown={handleKeyPress}
                 className="text-lg py-6 rounded-r-none bg-white/5 border-white/20 text-white placeholder:text-gray-400 relative z-10"
               />

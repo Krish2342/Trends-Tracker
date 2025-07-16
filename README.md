@@ -1,4 +1,4 @@
-This is live website like :- https://trends-tracker-6m1v.vercel.app/
+This is live website link :- https://trends-tracker-6m1v.vercel.app/
 
 📍 Project Progress Documentation
 

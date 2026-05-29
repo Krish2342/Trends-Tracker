@@ -23,6 +23,17 @@ interface AuthContextType {
   isAuthenticated: boolean
   requestPasswordReset: (email: string) => Promise<{ success: boolean; error?: string }>
   resetPassword: (token: string, newPassword: string) => Promise<{ success: boolean; error?: string }>
+  isAuthModalOpen: boolean
+  setAuthModalOpen: (open: boolean) => void
+  openAuthModal: (onSuccess?: () => void) => void
+  closeAuthModal: () => void
+  searchHistory: string[]
+  favorites: string[]
+  addSearchHistory: (term: string) => void
+  clearSearchHistory: () => void
+  toggleFavorite: (term: string) => void
+  updateUserProfile: (name: string, avatarUrl?: string) => Promise<{ success: boolean; error?: string }>
+  updateUserPassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -95,6 +106,22 @@ function saveResetTokens(tokens: Record<string, ResetToken>): void {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isAuthModalOpen, setAuthModalOpen] = useState(false)
+  const [onSuccessCb, setOnSuccessCb] = useState<(() => void) | null>(null)
+
+  const openAuthModal = (onSuccess?: () => void) => {
+    if (onSuccess) {
+      setOnSuccessCb(() => onSuccess)
+    } else {
+      setOnSuccessCb(null)
+    }
+    setAuthModalOpen(true)
+  }
+
+  const closeAuthModal = () => {
+    setOnSuccessCb(null)
+    setAuthModalOpen(false)
+  }
 
   // Restore session on app start
   useEffect(() => {
@@ -133,6 +160,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setUser(sessionUser)
       localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser))
+
+      if (onSuccessCb) {
+        onSuccessCb()
+      }
+      setOnSuccessCb(null)
+      setAuthModalOpen(false)
+
       return { success: true }
     } catch {
       return { success: false, error: "Login failed. Please try again." }
@@ -171,6 +205,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setUser(sessionUser)
       localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser))
+
+      if (onSuccessCb) {
+        onSuccessCb()
+      }
+      setOnSuccessCb(null)
+      setAuthModalOpen(false)
+
       return { success: true }
     } catch {
       return { success: false, error: "Signup failed. Please try again." }
@@ -232,6 +273,101 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const [searchHistory, setSearchHistory] = useState<string[]>([])
+  const [favorites, setFavorites] = useState<string[]>([])
+
+  useEffect(() => {
+    if (user) {
+      const storedHistory = localStorage.getItem(`trends-history-${user.id}`)
+      setSearchHistory(storedHistory ? JSON.parse(storedHistory) : [])
+
+      const storedFavorites = localStorage.getItem(`trends-favorites-${user.id}`)
+      setFavorites(storedFavorites ? JSON.parse(storedFavorites) : ["Cricket", "IPL", "Bollywood", "Technology"])
+    } else {
+      setSearchHistory([])
+      setFavorites([])
+    }
+  }, [user])
+
+  const addSearchHistory = (term: string) => {
+    if (!user || !term.trim()) return
+    const normalized = term.trim()
+    setSearchHistory((prev) => {
+      const filtered = prev.filter((t) => t.toLowerCase() !== normalized.toLowerCase())
+      const updated = [normalized, ...filtered].slice(0, 8)
+      localStorage.setItem(`trends-history-${user.id}`, JSON.stringify(updated))
+      return updated
+    })
+  }
+
+  const clearSearchHistory = () => {
+    if (!user) return
+    setSearchHistory([])
+    localStorage.removeItem(`trends-history-${user.id}`)
+  }
+
+  const toggleFavorite = (term: string) => {
+    if (!user || !term.trim()) return
+    const normalized = term.trim()
+    setFavorites((prev) => {
+      let updated
+      if (prev.some((f) => f.toLowerCase() === normalized.toLowerCase())) {
+        updated = prev.filter((f) => f.toLowerCase() !== normalized.toLowerCase())
+      } else {
+        updated = [normalized, ...prev]
+      }
+      localStorage.setItem(`trends-favorites-${user.id}`, JSON.stringify(updated))
+      return updated
+    })
+  }
+
+  const updateUserProfile = async (name: string, avatar?: string) => {
+    if (!user) return { success: false, error: "Not authenticated" }
+    try {
+      const users = getStoredUsers()
+      const idx = users.findIndex((u) => u.id === user.id)
+      if (idx === -1) return { success: false, error: "User not found" }
+
+      const updatedUser = { ...users[idx], name, avatar: avatar || users[idx].avatar }
+      users[idx] = updatedUser
+      saveStoredUsers(users)
+
+      const sessionUser = {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        avatar: updatedUser.avatar,
+        createdAt: updatedUser.createdAt,
+      }
+      setUser(sessionUser)
+      localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser))
+
+      return { success: true }
+    } catch {
+      return { success: false, error: "Failed to update profile" }
+    }
+  }
+
+  const updateUserPassword = async (currentPassword: string, newPassword: string) => {
+    if (!user) return { success: false, error: "Not authenticated" }
+    try {
+      const users = getStoredUsers()
+      const idx = users.findIndex((u) => u.id === user.id)
+      if (idx === -1) return { success: false, error: "User not found" }
+
+      const currentHash = simpleHash(currentPassword)
+      if (users[idx].passwordHash !== currentHash) {
+        return { success: false, error: "Incorrect current password" }
+      }
+
+      users[idx].passwordHash = simpleHash(newPassword)
+      saveStoredUsers(users)
+      return { success: true }
+    } catch {
+      return { success: false, error: "Failed to update password" }
+    }
+  }
+
   const logout = () => {
     setUser(null)
     localStorage.removeItem(SESSION_KEY)
@@ -246,6 +382,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: !!user,
     requestPasswordReset,
     resetPassword,
+    isAuthModalOpen,
+    setAuthModalOpen,
+    openAuthModal,
+    closeAuthModal,
+    searchHistory,
+    favorites,
+    addSearchHistory,
+    clearSearchHistory,
+    toggleFavorite,
+    updateUserProfile,
+    updateUserPassword,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

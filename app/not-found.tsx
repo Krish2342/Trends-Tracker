@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-4">
+    <div className="flex-1 flex items-center justify-center p-4 relative overflow-hidden bg-black">
       {/* Background glow */}
       <div className="absolute inset-0 bg-gradient-to-br from-blue-950/30 via-black to-purple-950/20 pointer-events-none" />
 

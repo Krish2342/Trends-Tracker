@@ -11,10 +11,7 @@ interface ProtectedRouteProps {
 
 function LoadingSkeleton() {
   return (
-    <div className="min-h-screen bg-black">
-      {/* Skeleton header space */}
-      <div className="h-16 border-b border-white/10" />
-
+    <div className="flex-1 bg-black">
       {/* Skeleton hero */}
       <div className="container mx-auto px-4 py-16">
         <div className="text-center max-w-4xl mx-auto space-y-6 animate-pulse">

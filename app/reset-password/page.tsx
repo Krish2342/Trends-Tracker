@@ -29,8 +29,8 @@ function ResetPasswordContent() {
 
 export default function ResetPasswordPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-purple-600/10"></div>
+    <div className="flex-1 flex items-center justify-center p-4 relative overflow-hidden bg-gradient-to-br from-black via-gray-900 to-black">
+      <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-purple-600/10 pointer-events-none"></div>
       <div className="w-full max-w-md relative z-10">
         <Suspense
           fallback={

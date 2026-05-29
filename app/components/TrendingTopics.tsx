@@ -3,111 +3,157 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, TrendingDown, Radio } from "lucide-react"
+import { TrendingUp, TrendingDown, Radio, Loader2, AlertCircle, ExternalLink, RefreshCw } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 interface TrendingTopic {
-  topic: string
+  rank: number
+  query: string
+  source: string
+  url: string
+  category: string
   change: string
   trend: "up" | "down"
-  category: string
   timestamp: number
+  publishedAt: string
 }
 
-const initialTopics: TrendingTopic[] = [
-  { topic: "IPL 2024", change: "+2,340%", trend: "up", category: "Sports", timestamp: Date.now() },
-  { topic: "Bollywood Box Office", change: "+1,890%", trend: "up", category: "Entertainment", timestamp: Date.now() },
-  { topic: "All Blacks vs Wallabies", change: "+1,456%", trend: "up", category: "Sports", timestamp: Date.now() },
-  { topic: "Mumbai Local Train", change: "+1,234%", trend: "up", category: "Transport", timestamp: Date.now() },
-  { topic: "Auckland House Prices", change: "+987%", trend: "up", category: "Real Estate", timestamp: Date.now() },
-  { topic: "Diwali Shopping", change: "+876%", trend: "up", category: "Festival", timestamp: Date.now() },
-  { topic: "New Zealand Tourism", change: "+765%", trend: "up", category: "Travel", timestamp: Date.now() },
-  { topic: "Indian Elections 2024", change: "+654%", trend: "up", category: "Politics", timestamp: Date.now() },
-  { topic: "Kiwi Dollar Exchange", change: "-234%", trend: "down", category: "Finance", timestamp: Date.now() },
-  { topic: "Monsoon Weather India", change: "+543%", trend: "up", category: "Weather", timestamp: Date.now() },
-]
+function timeAgo(dateStr: string): string {
+  const diff = (Date.now() - new Date(dateStr).getTime()) / 1000 / 60
+  if (diff < 1) return "just now"
+  if (diff < 60) return `${Math.floor(diff)}m ago`
+  if (diff < 1440) return `${Math.floor(diff / 60)}h ago`
+  return `${Math.floor(diff / 1440)}d ago`
+}
 
 export function TrendingTopics() {
-  const [trendingTopics, setTrendingTopics] = useState<TrendingTopic[]>(initialTopics)
-  const [lastUpdated, setLastUpdated] = useState(new Date())
+  const [topics, setTopics] = useState<TrendingTopic[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+
+  const fetchTopics = async () => {
+    setIsLoading(true)
+    setError("")
+    try {
+      const res = await fetch("/api/realtime?cat=all")
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed to fetch")
+      setTopics(data.data || [])
+      setLastUpdated(new Date())
+    } catch (err: any) {
+      setError(err.message || "Failed to load trending topics")
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setTrendingTopics((prevTopics) => {
-        const newTopics = [...prevTopics]
-
-        // Update 1-2 random topics
-        const indicesToUpdate = Array.from({ length: Math.floor(Math.random() * 2) + 1 }, () =>
-          Math.floor(Math.random() * newTopics.length),
-        )
-
-        indicesToUpdate.forEach((index) => {
-          const topic = newTopics[index]
-          const changeValue = Math.floor(Math.random() * 1000) + 100
-          const isPositive = Math.random() > 0.2 // 80% chance of positive trend
-
-          newTopics[index] = {
-            ...topic,
-            change: `${isPositive ? "+" : "-"}${changeValue}%`,
-            trend: isPositive ? "up" : "down",
-            timestamp: Date.now(),
-          }
-        })
-
-        return newTopics
-      })
-
-      setLastUpdated(new Date())
-    }, 8000) // Update every 8 seconds
-
+    fetchTopics()
+    // Auto-refresh every 3 minutes
+    const interval = setInterval(fetchTopics, 3 * 60 * 1000)
     return () => clearInterval(interval)
   }, [])
 
+  const categoryColors: Record<string, string> = {
+    Sports: "bg-green-500/10 text-green-400 border-green-500/20",
+    Entertainment: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+    Technology: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    Politics: "bg-red-500/10 text-red-400 border-red-500/20",
+    Business: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+    Weather: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
+    Health: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    News: "bg-gray-500/10 text-gray-400 border-gray-500/20",
+  }
+
   return (
-    <Card>
+    <Card className="glass-card h-full">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Radio className="w-5 h-5 text-red-500 animate-pulse" />
-          Trending Now
-        </CardTitle>
-        <CardDescription>Live updates • Last updated: {lastUpdated.toLocaleTimeString()}</CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-white">
+              <Radio className="w-5 h-5 text-red-500 animate-pulse" />
+              Trending Now
+            </CardTitle>
+            <CardDescription className="text-gray-400 mt-1">
+              {lastUpdated
+                ? `Live • Updated ${timeAgo(lastUpdated.toISOString())}`
+                : "Real-time topics from India"}
+            </CardDescription>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={fetchTopics}
+            disabled={isLoading}
+            className="text-gray-400 hover:text-white"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          {trendingTopics.map((item, index) => (
-            <div
-              key={`${item.topic}-${index}`}
-              className={`flex items-center justify-between p-3 rounded-lg border transition-all duration-500 ${
-                Date.now() - item.timestamp < 10000
-                  ? "bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800"
-                  : "hover:bg-muted/50"
-              }`}
-            >
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-medium">{item.topic}</span>
-                  {item.trend === "up" ? (
-                    <TrendingUp className="w-4 h-4 text-green-600" />
-                  ) : (
-                    <TrendingDown className="w-4 h-4 text-red-600" />
-                  )}
-                  {Date.now() - item.timestamp < 10000 && (
-                    <Badge variant="default" className="text-xs animate-pulse">
-                      UPDATED
+        {isLoading && topics.length === 0 ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+            <span className="ml-2 text-gray-400 text-sm">Loading trends...</span>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center gap-2 text-red-400 py-8 text-center">
+            <AlertCircle className="w-6 h-6" />
+            <span className="text-sm">{error}</span>
+            <Button variant="ghost" size="sm" onClick={fetchTopics} className="text-blue-400 hover:text-blue-300">
+              Retry
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {topics.map((item, index) => (
+              <a
+                key={index}
+                href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-start gap-3 p-3 rounded-xl border border-white/5 bg-white/3 hover:bg-white/8 hover:border-blue-500/20 transition-all duration-200 group cursor-pointer"
+              >
+                {/* Rank */}
+                <span className="text-xs font-bold text-gray-600 mt-0.5 w-4 shrink-0">
+                  {item.rank}
+                </span>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start gap-1 mb-1">
+                    <span className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors line-clamp-2 leading-tight">
+                      {item.query}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge
+                      className={`text-[10px] px-1.5 py-0 border ${categoryColors[item.category] || categoryColors["News"]}`}
+                    >
+                      {item.category}
                     </Badge>
-                  )}
+                    <span className="text-[10px] text-gray-500">{item.source}</span>
+                    <span className="text-[10px] text-gray-600">{timeAgo(item.publishedAt)}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-xs">
-                    {item.category}
-                  </Badge>
-                  <span className={`text-sm font-medium ${item.trend === "up" ? "text-green-600" : "text-red-600"}`}>
+
+                {/* Trend indicator */}
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  {item.trend === "up" ? (
+                    <TrendingUp className="w-3.5 h-3.5 text-green-400" />
+                  ) : (
+                    <TrendingDown className="w-3.5 h-3.5 text-red-400" />
+                  )}
+                  <span className={`text-[10px] font-semibold ${item.trend === "up" ? "text-green-400" : "text-red-400"}`}>
                     {item.change}
                   </span>
                 </div>
-              </div>
-            </div>
-          ))}
-        </div>
+              </a>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   )

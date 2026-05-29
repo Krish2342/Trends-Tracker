@@ -3,9 +3,9 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { AuthProvider } from "./contexts/AuthContext"
-import { ProtectedRoute } from "./components/ProtectedRoute"
 import { Header } from "./components/Header"
 import { Footer } from "./components/Footer"
+import { IntroAnimation } from "./components/IntroAnimation"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -17,6 +17,8 @@ export const metadata: Metadata = {
     generator: 'v0.dev'
 }
 
+import { GlobalAuthModal } from "./components/auth/GlobalAuthModal"
+
 export default function RootLayout({
   children,
 }: {
@@ -25,14 +27,16 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body className={`${inter.className} app-gradient`}>
+        <IntroAnimation />
         <AuthProvider>
           <div className="relative flex min-h-screen flex-col">
             <Header />
-            <main className="flex-1">
-              <ProtectedRoute>{children}</ProtectedRoute>
+            <main className="flex-1 flex flex-col">
+              {children}
             </main>
             <Footer />
           </div>
+          <GlobalAuthModal />
         </AuthProvider>
       </body>
     </html>

@@ -140,14 +140,6 @@ export function LoginForm({ onSwitchToSignup, onForgotPassword }: LoginFormProps
             )}
           </Button>
 
-          {/* Demo Credentials hint */}
-          <div className="p-3 bg-white/5 rounded-lg border border-white/10">
-            <p className="text-xs text-gray-400 font-medium mb-1">Demo account</p>
-            <p className="text-xs text-gray-500">
-              Email: demo@example.com · Password: password123
-            </p>
-          </div>
-
           {/* Switch to Signup */}
           <div className="text-center">
             <p className="text-sm text-gray-400">

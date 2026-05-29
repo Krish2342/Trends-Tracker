@@ -6,6 +6,11 @@ const nextConfig = {
       { protocol: 'http', hostname: 'localhost' },
     ],
   },
+  allowedDevOrigins: [
+    'localhost:3000',
+    '192.168.137.147:3000',
+    '192.168.137.147'
+  ]
 }
 
 export default nextConfig

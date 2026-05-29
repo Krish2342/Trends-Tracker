@@ -74,7 +74,7 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/api" className="hover:text-blue-400 transition-colors">
+                <Link href="/api-docs" className="hover:text-blue-400 transition-colors">
                   API Documentation
                 </Link>
               </li>

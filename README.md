@@ -24,6 +24,8 @@ TrendsTracker is a high-performance web application designed to democratize data
 
 ## 📸 Demo & Screenshots
 
+**Live Demo:** [https://trends-tracker.vercel.app](https://trends-tracker.vercel.app)
+
 *(Add your screenshots here! Example below)*
 
 | **Dashboard** | **Keyword Compare** |

@@ -3,6 +3,7 @@ import { checkRateLimit, verifyAuth, unauthorizedResponse } from "@/lib/security
 
 const GNEWS_API_KEY = process.env.GNEWS_API_KEY
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY
+const SERPAPI_KEY = process.env.SERPAPI_KEY
 
 function extractText(xmlChunk: string, tag: string): string {
   const cdataMatch = xmlChunk.match(new RegExp(`<${tag}[^>]*>\\s*<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>`, "i"))
@@ -105,7 +106,67 @@ async function fetchGoogleSuggestions(query: string): Promise<string[]> {
   }
 }
 
-// Simple hash to get stable seeded values based on query
+// ─── SerpAPI: Real Google Trends Data ─────────────────────────────────────────
+
+async function fetchSerpApiTrends(query: string, timeRange: string): Promise<any | null> {
+  if (!SERPAPI_KEY) return null
+
+  // Map timeRange to SerpAPI date format
+  const dateMap: Record<string, string> = {
+    "1h": "now 1-H",
+    "4h": "now 4-H",
+    "1d": "now 1-d",
+    "7d": "now 7-d",
+    "1m": "today 1-m",
+    "3m": "today 3-m",
+    "12m": "today 12-m",
+    "5y": "today 5-y",
+  }
+  const date = dateMap[timeRange] || "today 12-m"
+
+  try {
+    const url = `https://serpapi.com/search.json?engine=google_trends&q=${encodeURIComponent(query)}&date=${encodeURIComponent(date)}&geo=IN&api_key=${SERPAPI_KEY}`
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
+    if (!res.ok) {
+      console.warn("SerpAPI response status:", res.status)
+      return null
+    }
+    return await res.json()
+  } catch (e) {
+    console.error("SerpAPI fetch failed:", e)
+    return null
+  }
+}
+
+async function fetchSerpApiRelated(query: string, type: "QUERY" | "TOPIC" = "QUERY"): Promise<any | null> {
+  if (!SERPAPI_KEY) return null
+
+  try {
+    const url = `https://serpapi.com/search.json?engine=google_trends&q=${encodeURIComponent(query)}&data_type=RELATED_${type === "QUERY" ? "QUERIES" : "TOPICS"}&geo=IN&api_key=${SERPAPI_KEY}`
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
+    if (!res.ok) return null
+    return await res.json()
+  } catch (e) {
+    console.error(`SerpAPI related ${type} failed:`, e)
+    return null
+  }
+}
+
+async function fetchSerpApiRegional(query: string): Promise<any | null> {
+  if (!SERPAPI_KEY) return null
+
+  try {
+    const url = `https://serpapi.com/search.json?engine=google_trends&q=${encodeURIComponent(query)}&data_type=GEO_MAP_0&geo=IN&api_key=${SERPAPI_KEY}`
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
+    if (!res.ok) return null
+    return await res.json()
+  } catch (e) {
+    console.error("SerpAPI regional failed:", e)
+    return null
+  }
+}
+
+// Simple hash to get stable seeded values based on query (fallback only)
 function getQuerySeed(str: string): number {
   let hash = 0
   for (let i = 0; i < str.length; i++) {
@@ -212,116 +273,199 @@ export async function GET(request: Request) {
       }
     }
 
-    // 4. Generate stable, query-seeded statistics
+    // ─── 4. Fetch REAL Google Trends data from SerpAPI ─────────────────────────
+
+    // Fetch all SerpAPI data in parallel
+    const [serpTrends, serpRelatedQ, serpRelatedT, serpRegional, googleSuggestions] = await Promise.all([
+      fetchSerpApiTrends(query, timeRange),
+      fetchSerpApiRelated(query, "QUERY"),
+      fetchSerpApiRelated(query, "TOPIC"),
+      fetchSerpApiRegional(query),
+      fetchGoogleSuggestions(query),
+    ])
+
     const seed = getQuerySeed(query)
     const now = new Date()
 
-    // Deterministic interest over time
-    const interest_over_time = Array.from({ length: 12 }, (_, i) => {
-      const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1)
-      const monthOffset = i
-      const x = Math.sin(seed + monthOffset * 11) * 10000
-      const randVal = x - Math.floor(x)
-      // Base trend shape (sine curve) + variation
-      const trendBase = 45 + Math.sin(monthOffset / 3) * 15
-      const value = Math.floor(trendBase + randVal * 30)
+    // ─── Interest Over Time (REAL from SerpAPI or fallback) ───────────────────
 
-      return {
-        date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
-        month: d.toLocaleString("default", { month: "short" }),
-        value: Math.min(100, Math.max(10, value)),
-      }
-    })
+    let interest_over_time: any[] = []
 
-    // Fetch real Google suggestions for fresh related queries & topics
-    const googleSuggestions = await fetchGoogleSuggestions(query)
+    if (serpTrends?.interest_over_time?.timeline_data) {
+      interest_over_time = serpTrends.interest_over_time.timeline_data.map((point: any) => {
+        const dateStr = point.date || ""
+        const value = point.values?.[0]?.extracted_value ?? 0
+        // Parse date — SerpAPI gives formats like "Aug 18 – 24, 2026" or "Aug 2025"
+        let parsedDate = new Date()
+        try {
+          // Try to parse the start of a date range
+          const cleanDate = dateStr.split("–")[0].split("-")[0].trim()
+          parsedDate = new Date(cleanDate)
+          if (isNaN(parsedDate.getTime())) parsedDate = new Date()
+        } catch { /* use current date */ }
 
-    // Deterministic related queries
+        return {
+          date: `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, "0")}`,
+          month: parsedDate.toLocaleString("default", { month: "short" }),
+          value: Math.min(100, Math.max(0, value)),
+        }
+      })
+    }
+
+    // Fallback: generate deterministic data if SerpAPI returned nothing
+    if (interest_over_time.length === 0) {
+      interest_over_time = Array.from({ length: 12 }, (_, i) => {
+        const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1)
+        const monthOffset = i
+        const x = Math.sin(seed + monthOffset * 11) * 10000
+        const randVal = x - Math.floor(x)
+        const trendBase = 45 + Math.sin(monthOffset / 3) * 15
+        const value = Math.floor(trendBase + randVal * 30)
+        return {
+          date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+          month: d.toLocaleString("default", { month: "short" }),
+          value: Math.min(100, Math.max(10, value)),
+        }
+      })
+    }
+
+    // ─── Related Queries (REAL from SerpAPI or fallback) ──────────────────────
+
     let related_queries: any[] = []
-    if (googleSuggestions.length > 0) {
-      related_queries = googleSuggestions.slice(0, 8).map((suggestion, i) => ({
-        query: suggestion,
-        url: `https://www.google.com/search?q=${encodeURIComponent(suggestion)}`,
-        trend: i < 3 || Math.sin(seed + i) > 0 ? "rising" : "top",
-        change: `+${Math.floor(((Math.sin(seed + i * 3) + 1) / 2) * 350 + 80)}%`,
-      }))
-    } else {
-      related_queries = articles.slice(0, 5).map((article: any, i: number) => ({
-        query: (article.title || "").slice(0, 45) + "...",
-        url: article.url,
-        trend: i < 3 ? "rising" : "top",
-        change: `+${Math.floor(((Math.sin(seed + i * 3) + 1) / 2) * 350 + 80)}%`,
-      }))
 
-      if (related_queries.length === 0) {
-        const subtopics = ["Analysis", "India News", "Live Updates", "Review", "Stats"]
-        related_queries = subtopics.map((sub, i) => ({
-          query: `${query} ${sub}`,
-          url: `https://www.google.com/search?q=${encodeURIComponent(query + " " + sub)}`,
+    if (serpRelatedQ?.related_queries) {
+      const rising = serpRelatedQ.related_queries.rising || []
+      const top = serpRelatedQ.related_queries.top || []
+      related_queries = [
+        ...rising.slice(0, 5).map((item: any) => ({
+          query: item.query,
+          url: item.link || `https://www.google.com/search?q=${encodeURIComponent(item.query)}`,
+          trend: "rising",
+          change: item.extracted_value ? `+${item.extracted_value}%` : (item.value || "Breakout"),
+        })),
+        ...top.slice(0, 3).map((item: any) => ({
+          query: item.query,
+          url: item.link || `https://www.google.com/search?q=${encodeURIComponent(item.query)}`,
+          trend: "top",
+          change: item.extracted_value ? `${item.extracted_value}%` : (item.value || "100"),
+        })),
+      ]
+    }
+
+    // Fallback to Google Suggestions if SerpAPI returned no related queries
+    if (related_queries.length === 0) {
+      if (googleSuggestions.length > 0) {
+        related_queries = googleSuggestions.slice(0, 8).map((suggestion, i) => ({
+          query: suggestion,
+          url: `https://www.google.com/search?q=${encodeURIComponent(suggestion)}`,
+          trend: i < 3 || Math.sin(seed + i) > 0 ? "rising" : "top",
+          change: `+${Math.floor(((Math.sin(seed + i * 3) + 1) / 2) * 350 + 80)}%`,
+        }))
+      } else {
+        related_queries = articles.slice(0, 5).map((article: any, i: number) => ({
+          query: (article.title || "").slice(0, 45) + "...",
+          url: article.url,
           trend: i < 3 ? "rising" : "top",
-          change: `+${Math.floor(((Math.sin(seed + i * 2) + 1) / 2) * 450 + 50)}%`,
+          change: `+${Math.floor(((Math.sin(seed + i * 3) + 1) / 2) * 350 + 80)}%`,
+        }))
+
+        if (related_queries.length === 0) {
+          const subtopics = ["Analysis", "India News", "Live Updates", "Review", "Stats"]
+          related_queries = subtopics.map((sub, i) => ({
+            query: `${query} ${sub}`,
+            url: `https://www.google.com/search?q=${encodeURIComponent(query + " " + sub)}`,
+            trend: i < 3 ? "rising" : "top",
+            change: `+${Math.floor(((Math.sin(seed + i * 2) + 1) / 2) * 450 + 50)}%`,
+          }))
+        }
+      }
+    }
+
+    // ─── Related Topics (REAL from SerpAPI or fallback) ───────────────────────
+
+    let related_topics: any[] = []
+
+    if (serpRelatedT?.related_topics) {
+      const rising = serpRelatedT.related_topics.rising || []
+      const top = serpRelatedT.related_topics.top || []
+      related_topics = [
+        ...rising.slice(0, 4).map((item: any) => ({
+          query: item.topic?.title || item.query || "",
+          trend: "rising",
+          change: item.extracted_value ? `+${item.extracted_value}%` : (item.value || "Breakout"),
+        })),
+        ...top.slice(0, 3).map((item: any) => ({
+          query: item.topic?.title || item.query || "",
+          trend: "top",
+          change: item.extracted_value ? `${item.extracted_value}%` : (item.value || "100"),
+        })),
+      ]
+    }
+
+    // Fallback to Google Suggestions if no related topics
+    if (related_topics.length === 0) {
+      if (googleSuggestions.length > 0) {
+        related_topics = googleSuggestions.slice(1, 7).map((suggestion, i) => {
+          let topicName = suggestion
+          if (topicName.toLowerCase().startsWith(query.toLowerCase())) {
+            topicName = topicName.substring(query.length).trim()
+          }
+          topicName = topicName.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
+          if (!topicName) {
+            topicName = suggestion.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
+          } else {
+            topicName = `${query.toUpperCase()} ${topicName}`
+          }
+          return {
+            query: topicName,
+            trend: i % 2 === 0 || Math.cos(seed + i) > 0 ? "rising" : "top",
+            change: `+${Math.floor(((Math.cos(seed + i * 2) + 1) / 2) * 200 + 40)}%`,
+          }
+        })
+      } else {
+        const topicSuffixes = ["Matches", "Squad", "Live Coverage", "News", "Schedule"]
+        related_topics = topicSuffixes.map((suffix, i) => ({
+          query: `${query} ${suffix}`,
+          trend: i % 2 === 0 ? "rising" : "top",
+          change: `+${Math.floor(((Math.cos(seed + i * 2) + 1) / 2) * 200 + 40)}%`,
         }))
       }
     }
 
-    // Deterministic related topics
-    let related_topics: any[] = []
-    if (googleSuggestions.length > 0) {
-      related_topics = googleSuggestions.slice(1, 7).map((suggestion, i) => {
-        let topicName = suggestion
-        // If it starts with the query, clean it up
-        if (topicName.toLowerCase().startsWith(query.toLowerCase())) {
-          topicName = topicName.substring(query.length).trim()
-        }
-        // Capitalize each word
-        topicName = topicName.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
-        if (!topicName) {
-          topicName = suggestion.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
-        } else {
-          topicName = `${query.toUpperCase()} ${topicName}`
-        }
-        return {
-          query: topicName,
-          trend: i % 2 === 0 || Math.cos(seed + i) > 0 ? "rising" : "top",
-          change: `+${Math.floor(((Math.cos(seed + i * 2) + 1) / 2) * 200 + 40)}%`,
-        }
-      })
-    } else {
-      const topicSuffixes = ["Matches", "Squad", "Live Coverage", "News", "Schedule"]
-      related_topics = topicSuffixes.map((suffix, i) => ({
-        query: `${query} ${suffix}`,
-        trend: i % 2 === 0 ? "rising" : "top",
-        change: `+${Math.floor(((Math.cos(seed + i * 2) + 1) / 2) * 200 + 40)}%`,
-      }))
+    // ─── Regional Interest (REAL from SerpAPI or fallback) ────────────────────
+
+    let regional_interest: any[] = []
+
+    if (serpRegional?.interest_by_region) {
+      regional_interest = serpRegional.interest_by_region
+        .filter((r: any) => r.extracted_value > 0)
+        .slice(0, 10)
+        .map((r: any) => ({
+          region: r.location,
+          interest: r.extracted_value,
+        }))
     }
 
-    // Deterministic regional interest
-    const states = [
-      "Maharashtra",
-      "Delhi",
-      "Karnataka",
-      "Tamil Nadu",
-      "West Bengal",
-      "Gujarat",
-      "Rajasthan",
-      "Uttar Pradesh",
-      "Kerala",
-      "Punjab",
-      "Haryana",
-      "Telangana",
-    ]
+    // Fallback: seeded regional data
+    if (regional_interest.length === 0) {
+      const states = [
+        "Maharashtra", "Delhi", "Karnataka", "Tamil Nadu", "West Bengal",
+        "Gujarat", "Rajasthan", "Uttar Pradesh", "Kerala", "Punjab",
+        "Haryana", "Telangana",
+      ]
+      regional_interest = states
+        .map((state, i) => {
+          const x = Math.sin(seed + i * 7) * 10000
+          const randVal = x - Math.floor(x)
+          const interest = Math.floor(35 + randVal * 65)
+          return { region: state, interest }
+        })
+        .sort((a, b) => b.interest - a.interest)
+        .slice(0, 8)
+    }
 
-    const regional_interest = states
-      .map((state, i) => {
-        const x = Math.sin(seed + i * 7) * 10000
-        const randVal = x - Math.floor(x)
-        const interest = Math.floor(35 + randVal * 65)
-        return { region: state, interest }
-      })
-      .sort((a, b) => b.interest - a.interest)
-      .slice(0, 8)
+    // ─── YouTube Videos ──────────────────────────────────────────────────────
 
-    // YouTube format
     let related_videos = youtubeData.map((item: any) => ({
       title: item.snippet?.title || "",
       channel: item.snippet?.channelTitle || "",
@@ -351,12 +495,24 @@ export async function GET(request: Request) {
       })
     }
 
+    // ─── Determine data source for transparency ──────────────────────────────
+
+    const dataSource = {
+      interest_over_time: serpTrends?.interest_over_time ? "google_trends" : "estimated",
+      related_queries: serpRelatedQ?.related_queries ? "google_trends" : "google_suggestions",
+      related_topics: serpRelatedT?.related_topics ? "google_trends" : "estimated",
+      regional_interest: serpRegional?.interest_by_region ? "google_trends" : "estimated",
+      articles: GNEWS_API_KEY && articles[0]?.source !== "TrendsTracker Analytics" ? "gnews" : "rss_feeds",
+      videos: youtubeData.length > 0 ? "youtube_api" : "mock",
+    }
+
     return NextResponse.json({
       query,
       timeRange,
       region,
       totalResults: articles.length,
       articles: articles.slice(0, 10),
+      dataSource,
       data: {
         interest_over_time,
         related_queries,

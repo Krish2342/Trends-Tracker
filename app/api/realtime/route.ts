@@ -107,19 +107,30 @@ export async function GET(request: Request) {
       .sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime())
       .slice(0, 10)
 
-    const formatted = allArticles.map((article, index) => ({
-      rank: index + 1,
-      query: article.title,
-      source: article.source,
-      url: article.link,
-      image: article.image,
-      publishedAt: article.pubDate,
-      searches: `${(Math.random() * 4 + 1).toFixed(1)}M+`,
-      change: `+${Math.floor(Math.random() * 500 + 100)}%`,
-      trend: "up" as const,
-      category: article.category,
-      timestamp: Date.now(),
-    }))
+    const formatted = allArticles.map((article, index) => {
+      // Generate stable values based on article title hash
+      let hash = 0
+      for (let i = 0; i < (article.title || "").length; i++) {
+        hash = (article.title || "").charCodeAt(i) + ((hash << 5) - hash)
+      }
+      hash = Math.abs(hash)
+      const searchVal = ((hash % 40) + 5) / 10 // 0.5M to 4.5M
+      const changeVal = (hash % 400) + 100
+
+      return {
+        rank: index + 1,
+        query: article.title,
+        source: article.source,
+        url: article.link,
+        image: article.image,
+        publishedAt: article.pubDate,
+        searches: `${searchVal.toFixed(1)}M+`,
+        change: `+${changeVal}%`,
+        trend: "up" as const,
+        category: article.category,
+        timestamp: Date.now(),
+      }
+    })
 
     return NextResponse.json({
       geo: "India",

@@ -109,19 +109,30 @@ export async function GET(request: Request) {
       )
     }
 
-    const trends = allArticles.map((article, index) => ({
-      keyword: article.title,
-      source: article.source,
-      category: article.category,
-      url: article.link,
-      image: article.image,
-      description: article.description,
-      publishedAt: article.pubDate,
-      searches: `${Math.floor(Math.random() * 900 + 100)}K+`,
-      change: `+${Math.floor(Math.random() * 400 + 50)}%`,
-      timestamp: article.pubDate,
-      rank: index + 1,
-    }))
+    const trends = allArticles.map((article, index) => {
+      // Generate stable values based on article title hash
+      let hash = 0
+      for (let i = 0; i < (article.title || "").length; i++) {
+        hash = (article.title || "").charCodeAt(i) + ((hash << 5) - hash)
+      }
+      hash = Math.abs(hash)
+      const searchVal = (hash % 900) + 100
+      const changeVal = (hash % 400) + 50
+
+      return {
+        keyword: article.title,
+        source: article.source,
+        category: article.category,
+        url: article.link,
+        image: article.image,
+        description: article.description,
+        publishedAt: article.pubDate,
+        searches: `${searchVal}K+`,
+        change: `+${changeVal}%`,
+        timestamp: article.pubDate,
+        rank: index + 1,
+      }
+    })
 
     return NextResponse.json({
       success: true,

@@ -9,20 +9,26 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Eye, EyeOff, Mail, Lock, AlertCircle, Loader2, TrendingUp } from "lucide-react"
 import { useAuth } from "../../contexts/AuthContext"
+import Link from "next/link"
 
 interface LoginFormProps {
-  onSwitchToSignup: () => void
-  onForgotPassword: () => void
+  // Props removed since we use pages now
 }
 
-export function LoginForm({ onSwitchToSignup, onForgotPassword }: LoginFormProps) {
+export function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const { login, loginWithOAuth } = useAuth()
 
-  const { login } = useAuth()
+  // Get the redirect URL from query params
+  const getRedirectUrl = (): string => {
+    if (typeof window === 'undefined') return '/'
+    const params = new URLSearchParams(window.location.search)
+    return params.get('redirect') || '/'
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,6 +45,9 @@ export function LoginForm({ onSwitchToSignup, onForgotPassword }: LoginFormProps
       const result = await login(email, password)
       if (!result.success) {
         setError(result.error || "Login failed")
+      } else {
+        // Redirect to the intended page after successful login
+        window.location.href = getRedirectUrl()
       }
     } catch (err) {
       setError("Something went wrong. Please try again.")
@@ -106,14 +115,13 @@ export function LoginForm({ onSwitchToSignup, onForgotPassword }: LoginFormProps
 
           {/* Forgot Password Link */}
           <div className="text-right">
-            <button
-              type="button"
-              onClick={onForgotPassword}
-              className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
-              disabled={isLoading}
-            >
-              Forgot Password?
-            </button>
+              <Link
+                href="/forgot-password"
+                className="text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors"
+                tabIndex={-1}
+              >
+                Forgot password?
+              </Link>
           </div>
 
           {/* Error Message */}
@@ -139,19 +147,47 @@ export function LoginForm({ onSwitchToSignup, onForgotPassword }: LoginFormProps
               "Access Dashboard"
             )}
           </Button>
+          {/* OAuth Buttons */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-white/10" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-transparent px-2 text-gray-400">Or continue with</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Button
+              type="button"
+              variant="outline"
+              className="bg-white/5 border-white/20 text-white hover:bg-white/10"
+              onClick={() => loginWithOAuth('github', getRedirectUrl())}
+              disabled={isLoading}
+            >
+              GitHub
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="bg-white/5 border-white/20 text-white hover:bg-white/10"
+              onClick={() => loginWithOAuth('google', getRedirectUrl())}
+              disabled={isLoading}
+            >
+              Google
+            </Button>
+          </div>
 
           {/* Switch to Signup */}
           <div className="text-center">
             <p className="text-sm text-gray-400">
               Don't have an account?{" "}
-              <button
-                type="button"
-                onClick={onSwitchToSignup}
+              <Link
+                href="/signup"
                 className="text-blue-400 font-medium hover:text-blue-300 transition-colors"
-                disabled={isLoading}
               >
-                Create account
-              </button>
+                Sign up
+              </Link>
             </p>
           </div>
         </form>

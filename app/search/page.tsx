@@ -28,7 +28,7 @@ function SearchContent() {
   const [resultCount, setResultCount] = useState<number | null>(null)
   const [apiData, setApiData] = useState<any>(null)
   const [error, setError] = useState("")
-  const { isAuthenticated, openAuthModal, addSearchHistory } = useAuth()
+  const { isAuthenticated, isLoading: authLoading, addSearchHistory, getAccessToken } = useAuth()
 
   // Fetch real search trend data from API
   useEffect(() => {
@@ -36,6 +36,9 @@ function SearchContent() {
       setApiData(null)
       return
     }
+
+    // Wait for auth to resolve before deciding
+    if (authLoading) return
 
     // Intercept trend data fetching if not logged in
     if (!isAuthenticated) {
@@ -47,10 +50,15 @@ function SearchContent() {
 
     const controller = new AbortController()
 
-    fetch(
-      `/api/trends?q=${encodeURIComponent(activeSearchTerm.trim())}&time=${timeRange}&region=${region}`,
-      { signal: controller.signal }
-    )
+    // Get auth token for secure API call
+    getAccessToken().then((token) => {
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      fetch(
+        `/api/trends?q=${encodeURIComponent(activeSearchTerm.trim())}&time=${timeRange}&region=${region}`,
+        { signal: controller.signal, headers }
+      )
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch real-time trends data")
         return res.json()
@@ -78,16 +86,18 @@ function SearchContent() {
       .finally(() => {
         setIsLoadingRelated(false)
       })
+    }) // end getAccessToken().then()
 
     return () => controller.abort()
-  }, [activeSearchTerm, timeRange, region, category, isAuthenticated])
+  }, [activeSearchTerm, timeRange, region, category, isAuthenticated, authLoading])
 
-  // Automatically summon the authentication modal if guest attempts direct load of results
   useEffect(() => {
+    // Don't redirect while auth is still loading — wait for session to resolve
+    if (authLoading) return
     if (activeSearchTerm.trim() && !isAuthenticated) {
-      openAuthModal()
+      window.location.href = `/login?redirect=${encodeURIComponent(`/search?q=${encodeURIComponent(activeSearchTerm.trim())}`)}`
     }
-  }, [activeSearchTerm, isAuthenticated])
+  }, [activeSearchTerm, isAuthenticated, authLoading])
 
   // Generate result count on client only (avoids hydration mismatch)
   useEffect(() => {
@@ -116,12 +126,11 @@ function SearchContent() {
     const targetTerm = (termToSearch || searchTerm).trim()
     if (!targetTerm) return
 
-    if (!isAuthenticated) {
-      openAuthModal(() => {
-        executeSearch(targetTerm)
-      })
-    } else {
+    // If auth is still loading, just execute the search optimistically
+    if (authLoading || isAuthenticated) {
       executeSearch(targetTerm)
+    } else {
+      window.location.href = `/login?redirect=${encodeURIComponent(`/search?q=${encodeURIComponent(targetTerm)}`)}`
     }
   }
 
@@ -133,11 +142,16 @@ function SearchContent() {
     }
   }
 
-  const refreshRelatedData = () => {
+  const refreshRelatedData = async () => {
     if (activeSearchTerm) {
       setIsLoadingRelated(true)
+      const token = await getAccessToken()
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
       fetch(
-        `/api/trends?q=${encodeURIComponent(activeSearchTerm.trim())}&time=${timeRange}&region=${region}`
+        `/api/trends?q=${encodeURIComponent(activeSearchTerm.trim())}&time=${timeRange}&region=${region}`,
+        { headers }
       )
         .then((res) => res.json())
         .then((json) => {

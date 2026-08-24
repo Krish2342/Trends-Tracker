@@ -17,7 +17,6 @@ export const metadata: Metadata = {
     generator: 'v0.dev'
 }
 
-import { GlobalAuthModal } from "./components/auth/GlobalAuthModal"
 
 export default function RootLayout({
   children,
@@ -36,7 +35,6 @@ export default function RootLayout({
             </main>
             <Footer />
           </div>
-          <GlobalAuthModal />
         </AuthProvider>
       </body>
     </html>

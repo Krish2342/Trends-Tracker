@@ -9,12 +9,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Eye, EyeOff, Mail, Lock, User, AlertCircle, Loader2, CheckCircle, TrendingUp } from "lucide-react"
 import { useAuth } from "../../contexts/AuthContext"
+import Link from "next/link"
 
 interface SignupFormProps {
-  onSwitchToLogin: () => void
+  // Props removed since we use pages now
 }
 
-export function SignupForm({ onSwitchToLogin }: SignupFormProps) {
+export function SignupForm() {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -23,8 +24,7 @@ export function SignupForm({ onSwitchToLogin }: SignupFormProps) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-
-  const { signup } = useAuth()
+  const { signup, loginWithOAuth } = useAuth()
 
   const validatePassword = (password: string) => {
     return password.length >= 6
@@ -217,19 +217,47 @@ export function SignupForm({ onSwitchToLogin }: SignupFormProps) {
               "Get Access"
             )}
           </Button>
+          {/* OAuth Buttons */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-white/10" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-transparent px-2 text-gray-400">Or continue with</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Button
+              type="button"
+              variant="outline"
+              className="bg-white/5 border-white/20 text-white hover:bg-white/10"
+              onClick={() => loginWithOAuth('github')}
+              disabled={isLoading}
+            >
+              GitHub
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="bg-white/5 border-white/20 text-white hover:bg-white/10"
+              onClick={() => loginWithOAuth('google')}
+              disabled={isLoading}
+            >
+              Google
+            </Button>
+          </div>
 
           {/* Switch to Login */}
           <div className="text-center">
             <p className="text-sm text-gray-400">
               Already have an account?{" "}
-              <button
-                type="button"
-                onClick={onSwitchToLogin}
+              <Link
+                href="/login"
                 className="text-blue-400 font-medium hover:text-blue-300 transition-colors"
-                disabled={isLoading}
               >
                 Sign in
-              </button>
+              </Link>
             </p>
           </div>
         </form>

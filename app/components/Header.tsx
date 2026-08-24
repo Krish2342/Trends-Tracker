@@ -14,16 +14,14 @@ import { useAuth } from "../contexts/AuthContext"
 export function Header() {
   const [searchTerm, setSearchTerm] = useState("")
   const [isOpen, setIsOpen] = useState(false)
-  const { isAuthenticated, openAuthModal } = useAuth()
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
 
   const handleSearch = () => {
     if (searchTerm.trim()) {
-      if (isAuthenticated) {
+      if (authLoading || isAuthenticated) {
         window.location.href = `/search?q=${encodeURIComponent(searchTerm.trim())}`
       } else {
-        openAuthModal(() => {
-          window.location.href = `/search?q=${encodeURIComponent(searchTerm.trim())}`
-        })
+        window.location.href = `/login?redirect=${encodeURIComponent(`/search?q=${encodeURIComponent(searchTerm.trim())}`)}`
       }
     }
   }
@@ -106,12 +104,13 @@ export function Header() {
                 <UserProfile />
               </div>
             ) : (
-              <Button
-                onClick={() => openAuthModal()}
-                className="hidden md:flex bg-blue-600 hover:bg-blue-500 text-white border-0 app-glow-animate font-medium text-sm"
-              >
-                Sign In
-              </Button>
+              <Link href="/login">
+                <Button
+                  className="hidden md:flex bg-blue-600 hover:bg-blue-500 text-white border-0 app-glow-animate font-medium text-sm"
+                >
+                  Sign In
+                </Button>
+              </Link>
             )}
 
             {/* Mobile Menu for all users */}
@@ -156,15 +155,13 @@ export function Header() {
                     {isAuthenticated ? (
                       <UserProfile />
                     ) : (
-                      <Button
-                        onClick={() => {
-                          setIsOpen(false)
-                          openAuthModal()
-                        }}
-                        className="w-full bg-blue-600 hover:bg-blue-500 text-white border-0 app-glow-animate"
-                      >
-                        Sign In
-                      </Button>
+                      <Link href="/login" onClick={() => setIsOpen(false)}>
+                        <Button
+                          className="w-full bg-blue-600 hover:bg-blue-500 text-white border-0 app-glow-animate"
+                        >
+                          Sign In
+                        </Button>
+                      </Link>
                     )}
                   </div>
                 </div>

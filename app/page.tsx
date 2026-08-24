@@ -13,13 +13,14 @@ import { RegionalTrends } from "./components/RegionalTrends"
 import { CulturalEvents } from "./components/CulturalEvents"
 import { LocalNews } from "./components/LocalNews"
 import { useAuth } from "./contexts/AuthContext"
+import { ScrollReveal } from "./components/ScrollReveal"
 
 export default function HomePage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [trendingSearches, setTrendingSearches] = useState<string[]>([])
   const [featuredTrend, setFeaturedTrend] = useState("India")
 
-  const { user, isAuthenticated, openAuthModal } = useAuth()
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth()
 
   // Fetch real trending topics for hero pills & featured chart
   useEffect(() => {
@@ -47,12 +48,10 @@ export default function HomePage() {
 
   const handleSearch = () => {
     if (searchTerm.trim()) {
-      if (isAuthenticated) {
+      if (authLoading || isAuthenticated) {
         window.location.href = `/search?q=${encodeURIComponent(searchTerm.trim())}`
       } else {
-        openAuthModal(() => {
-          window.location.href = `/search?q=${encodeURIComponent(searchTerm.trim())}`
-        })
+        window.location.href = `/login?redirect=${encodeURIComponent(`/search?q=${encodeURIComponent(searchTerm.trim())}`)}`
       }
     }
   }
@@ -86,6 +85,30 @@ export default function HomePage() {
       {/* Hero Section */}
       <div className="relative overflow-hidden bg-gradient-to-br from-black via-gray-900 to-black">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-purple-600/10"></div>
+
+        {/* Floating Particles */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          {[...Array(12)].map((_, i) => (
+            <div
+              key={i}
+              className="floating-particle"
+              style={{
+                left: `${8 + (i * 7.5) % 90}%`,
+                top: `${15 + (i * 13) % 70}%`,
+                animationDelay: `${i * 0.5}s`,
+                animationDuration: `${5 + (i % 4)}s`,
+                width: `${3 + (i % 3)}px`,
+                height: `${3 + (i % 3)}px`,
+                background: i % 3 === 0
+                  ? 'rgba(59, 130, 246, 0.4)'
+                  : i % 3 === 1
+                    ? 'rgba(139, 92, 246, 0.3)'
+                    : 'rgba(99, 102, 241, 0.35)',
+              }}
+            />
+          ))}
+        </div>
+
         <div className="container mx-auto px-4 py-16 relative">
           <div className="text-center max-w-4xl mx-auto">
             <div className="mb-6">
@@ -128,7 +151,7 @@ export default function HomePage() {
             </div>
 
             {/* Trending Searches */}
-            <div className="flex flex-wrap justify-center gap-2 mb-8">
+            <div className="flex flex-wrap justify-center gap-2 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700 fill-mode-both delay-500">
               <span className="text-sm text-gray-400 mr-2">🔥 Trending in India:</span>
               {trendingSearches.map((term, index) => (
                 <Badge
@@ -144,29 +167,35 @@ export default function HomePage() {
 
             {/* Features */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
-              <Card className="glass-card hover-glow-green hover:scale-[1.03] hover:-translate-y-2.5 transition-all duration-500 ease-out animate-in fade-in slide-in-from-bottom-8 fill-mode-both delay-100 shadow-[0_0_20px_rgba(74,222,128,0.1)]">
-                <CardContent className="p-6 text-center">
-                  <Shield className="w-8 h-8 mx-auto mb-4 text-green-400 animate-icon-bounce" />
-                  <h3 className="font-semibold mb-2 text-white">Advanced Security</h3>
-                  <p className="text-sm text-gray-400">Enterprise-grade protection and exclusive access</p>
-                </CardContent>
-              </Card>
+              <ScrollReveal direction="up" delay={1} duration={700}>
+                <Card className="glass-card hover-glow-green hover:scale-[1.03] hover:-translate-y-2.5 transition-all duration-500 ease-out shadow-[0_0_20px_rgba(74,222,128,0.1)]">
+                  <CardContent className="p-6 text-center">
+                    <Shield className="w-8 h-8 mx-auto mb-4 text-green-400 animate-icon-bounce" />
+                    <h3 className="font-semibold mb-2 text-white">Advanced Security</h3>
+                    <p className="text-sm text-gray-400">Enterprise-grade protection and exclusive access</p>
+                  </CardContent>
+                </Card>
+              </ScrollReveal>
 
-              <Card className="glass-card hover-glow-yellow hover:scale-[1.03] hover:-translate-y-2.5 transition-all duration-500 ease-out animate-in fade-in slide-in-from-bottom-8 fill-mode-both delay-300 shadow-[0_0_20px_rgba(250,204,21,0.1)]">
-                <CardContent className="p-6 text-center">
-                  <Zap className="w-8 h-8 mx-auto mb-4 text-yellow-400 animate-icon-flicker" />
-                  <h3 className="font-semibold mb-2 text-white">Real-Time Intelligence</h3>
-                  <p className="text-sm text-gray-400">Live data with millisecond precision updates</p>
-                </CardContent>
-              </Card>
+              <ScrollReveal direction="up" delay={2} duration={700}>
+                <Card className="glass-card hover-glow-yellow hover:scale-[1.03] hover:-translate-y-2.5 transition-all duration-500 ease-out shadow-[0_0_20px_rgba(250,204,21,0.1)]">
+                  <CardContent className="p-6 text-center">
+                    <Zap className="w-8 h-8 mx-auto mb-4 text-yellow-400 animate-icon-flicker" />
+                    <h3 className="font-semibold mb-2 text-white">Real-Time Intelligence</h3>
+                    <p className="text-sm text-gray-400">Live data with millisecond precision updates</p>
+                  </CardContent>
+                </Card>
+              </ScrollReveal>
 
-              <Card className="glass-card hover-glow-purple hover:scale-[1.03] hover:-translate-y-2.5 transition-all duration-500 ease-out animate-in fade-in slide-in-from-bottom-8 fill-mode-both delay-500 shadow-[0_0_20px_rgba(192,132,252,0.1)]">
-                <CardContent className="p-6 text-center">
-                  <BarChart3 className="w-8 h-8 mx-auto mb-4 text-purple-400 animate-icon-pulse" />
-                  <h3 className="font-semibold mb-2 text-white">Deep Analytics</h3>
-                  <p className="text-sm text-gray-400">Category, regional, and temporal trend breakdowns</p>
-                </CardContent>
-              </Card>
+              <ScrollReveal direction="up" delay={3} duration={700}>
+                <Card className="glass-card hover-glow-purple hover:scale-[1.03] hover:-translate-y-2.5 transition-all duration-500 ease-out shadow-[0_0_20px_rgba(192,132,252,0.1)]">
+                  <CardContent className="p-6 text-center">
+                    <BarChart3 className="w-8 h-8 mx-auto mb-4 text-purple-400 animate-icon-pulse" />
+                    <h3 className="font-semibold mb-2 text-white">Deep Analytics</h3>
+                    <p className="text-sm text-gray-400">Category, regional, and temporal trend breakdowns</p>
+                  </CardContent>
+                </Card>
+              </ScrollReveal>
             </div>
           </div>
         </div>
@@ -177,151 +206,174 @@ export default function HomePage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Featured Trend */}
           <div className="lg:col-span-2">
-            <Card className="glass-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white">
-                  <TrendingUp className="w-5 h-5 text-blue-400" />
-                  <span className="truncate max-w-xs">Featured: "{featuredTrend || "India"} "</span>
-                  <Badge className="bg-red-500/20 text-red-400 border border-red-500/30 text-xs animate-pulse shrink-0">
-                    LIVE
-                  </Badge>
-                </CardTitle>
-                <CardDescription className="text-gray-400">
-                  Real-time news interest from GNews India over the past 12 months
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <DynamicTrendChart searchTerm={featuredTrend || "India"} />
-              </CardContent>
-            </Card>
+            <ScrollReveal direction="left" duration={900}>
+              <Card className="glass-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-white">
+                    <TrendingUp className="w-5 h-5 text-blue-400" />
+                    <span className="truncate max-w-xs">Featured: &quot;{featuredTrend || "India"} &quot;</span>
+                    <Badge className="bg-red-500/20 text-red-400 border border-red-500/30 text-xs animate-pulse shrink-0">
+                      LIVE
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription className="text-gray-400">
+                    Real-time news interest from GNews India over the past 12 months
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <DynamicTrendChart searchTerm={featuredTrend || "India"} />
+                </CardContent>
+              </Card>
+            </ScrollReveal>
           </div>
 
           {/* Trending Topics */}
           <div>
-            <TrendingTopics />
+            <ScrollReveal direction="right" duration={900}>
+              <TrendingTopics />
+            </ScrollReveal>
           </div>
         </div>
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-12">
-          <Link href="/search">
-            <Card className="glass-card hover-glow-blue hover:scale-[1.04] hover:-translate-y-1.5 transition-all duration-500 ease-out cursor-pointer group animate-in fade-in slide-in-from-bottom-6 fill-mode-both delay-100 shadow-[0_0_15px_rgba(59,130,246,0.05)]">
-              <CardContent className="p-6 text-center">
-                <Search className="w-8 h-8 mx-auto mb-4 text-blue-400 animate-icon-scan" />
-                <h3 className="font-semibold mb-2 text-white">Search</h3>
-                <p className="text-sm text-gray-400">Advanced trend analysis with AI insights</p>
-              </CardContent>
-            </Card>
-          </Link>
+          <ScrollReveal direction="up" delay={1} duration={600}>
+            <Link href="/search">
+              <Card className="glass-card hover-glow-blue hover:scale-[1.04] hover:-translate-y-1.5 transition-all duration-500 ease-out cursor-pointer group shadow-[0_0_15px_rgba(59,130,246,0.05)] h-full">
+                <CardContent className="p-6 text-center">
+                  <Search className="w-8 h-8 mx-auto mb-4 text-blue-400 animate-icon-scan" />
+                  <h3 className="font-semibold mb-2 text-white">Search</h3>
+                  <p className="text-sm text-gray-400">Advanced trend analysis with AI insights</p>
+                </CardContent>
+              </Card>
+            </Link>
+          </ScrollReveal>
 
-          <Link href="/compare">
-            <Card className="glass-card hover-glow-green hover:scale-[1.04] hover:-translate-y-1.5 transition-all duration-500 ease-out cursor-pointer group animate-in fade-in slide-in-from-bottom-6 fill-mode-both delay-200 shadow-[0_0_15px_rgba(74,222,128,0.05)]">
-              <CardContent className="p-6 text-center">
-                <BarChart3 className="w-8 h-8 mx-auto mb-4 text-green-400 animate-icon-pulse" />
-                <h3 className="font-semibold mb-2 text-white">Smart Compare</h3>
-                <p className="text-sm text-gray-400">Compare up to 10 terms with analytics</p>
-              </CardContent>
-            </Card>
-          </Link>
+          <ScrollReveal direction="up" delay={2} duration={600}>
+            <Link href="/compare">
+              <Card className="glass-card hover-glow-green hover:scale-[1.04] hover:-translate-y-1.5 transition-all duration-500 ease-out cursor-pointer group shadow-[0_0_15px_rgba(74,222,128,0.05)] h-full">
+                <CardContent className="p-6 text-center">
+                  <BarChart3 className="w-8 h-8 mx-auto mb-4 text-green-400 animate-icon-pulse" />
+                  <h3 className="font-semibold mb-2 text-white">Smart Compare</h3>
+                  <p className="text-sm text-gray-400">Compare up to 10 terms with analytics</p>
+                </CardContent>
+              </Card>
+            </Link>
+          </ScrollReveal>
 
-          <Link href="/realtime">
-            <Card className="glass-card hover-glow-red hover:scale-[1.04] hover:-translate-y-1.5 transition-all duration-500 ease-out cursor-pointer group animate-in fade-in slide-in-from-bottom-6 fill-mode-both delay-300 shadow-[0_0_15px_rgba(239,68,68,0.05)]">
-              <CardContent className="p-6 text-center">
-                <Clock className="w-8 h-8 mx-auto mb-4 text-red-400 animate-icon-clock-tick" />
-                <h3 className="font-semibold mb-2 text-white">Live Intelligence</h3>
-                <p className="text-sm text-gray-400">Real-time data with instant notifications</p>
-              </CardContent>
-            </Card>
-          </Link>
+          <ScrollReveal direction="up" delay={3} duration={600}>
+            <Link href="/realtime">
+              <Card className="glass-card hover-glow-red hover:scale-[1.04] hover:-translate-y-1.5 transition-all duration-500 ease-out cursor-pointer group shadow-[0_0_15px_rgba(239,68,68,0.05)] h-full">
+                <CardContent className="p-6 text-center">
+                  <Clock className="w-8 h-8 mx-auto mb-4 text-red-400 animate-icon-clock-tick" />
+                  <h3 className="font-semibold mb-2 text-white">Live Intelligence</h3>
+                  <p className="text-sm text-gray-400">Real-time data with instant notifications</p>
+                </CardContent>
+              </Card>
+            </Link>
+          </ScrollReveal>
 
-          <Link href="/explore">
-            <Card className="glass-card hover-glow-purple hover:scale-[1.04] hover:-translate-y-1.5 transition-all duration-500 ease-out cursor-pointer group animate-in fade-in slide-in-from-bottom-6 fill-mode-both delay-400 shadow-[0_0_15px_rgba(192,132,252,0.05)]">
-              <CardContent className="p-6 text-center">
-                <Globe className="w-8 h-8 mx-auto mb-4 text-purple-400 animate-icon-spin-slow" />
-                <h3 className="font-semibold mb-2 text-white">Regional Insights</h3>
-                <p className="text-sm text-gray-400">Exclusive regional data and predictions</p>
-              </CardContent>
-            </Card>
-          </Link>
+          <ScrollReveal direction="up" delay={4} duration={600}>
+            <Link href="/explore">
+              <Card className="glass-card hover-glow-purple hover:scale-[1.04] hover:-translate-y-1.5 transition-all duration-500 ease-out cursor-pointer group shadow-[0_0_15px_rgba(192,132,252,0.05)] h-full">
+                <CardContent className="p-6 text-center">
+                  <Globe className="w-8 h-8 mx-auto mb-4 text-purple-400 animate-icon-spin-slow" />
+                  <h3 className="font-semibold mb-2 text-white">Regional Insights</h3>
+                  <p className="text-sm text-gray-400">Exclusive regional data and predictions</p>
+                </CardContent>
+              </Card>
+            </Link>
+          </ScrollReveal>
         </div>
 
         {/* Top Google Search Trends (Real-Time) */}
-        <div className="mt-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
-          <Card className="glass-card">
-            <CardHeader className="border-b border-white/5 pb-4">
-              <CardTitle className="flex items-center gap-2 text-white">
-                <Search className="w-5 h-5 text-blue-400" />
-                Real-Time Search Trends (India)
-              </CardTitle>
-              <CardDescription className="text-gray-400">
-                Top surging queries over the last 24 hours based on search volume velocity.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[
-                  { query: "IPL 2026 Playoffs", volume: "3.2M+", growth: "+185%", color: "bg-blue-500", percent: 95 },
-                  { query: "US-Iran Ceasefire", volume: "1.8M+", growth: "+210%", color: "bg-emerald-500", percent: 85 },
-                  { query: "Karnataka CM News", volume: "950K+", growth: "+120%", color: "bg-purple-500", percent: 75 },
-                  { query: "NSE India / VBL", volume: "720K+", growth: "+64%", color: "bg-rose-500", percent: 65 },
-                  { query: "Eid ul-Adha 2026 Wishes", volume: "550K+", growth: "+312%", color: "bg-amber-500", percent: 55 },
-                  { query: "Vaibhav Sooryavanshi", volume: "410K+", growth: "+85%", color: "bg-cyan-500", percent: 45 },
-                ].map((trend, i) => (
-                  <div key={i} className="bg-white/[0.02] border border-white/5 p-4 rounded-xl hover:bg-white/[0.04] transition-colors group flex flex-col justify-center">
-                    <div className="flex justify-between items-center mb-3">
-                      <div>
-                        <h4 className="text-white font-bold text-lg group-hover:text-blue-400 transition-colors">{trend.query}</h4>
-                        <p className="text-xs text-gray-500 mt-0.5">Est. Volume: {trend.volume}</p>
+        <div className="mt-12">
+          <ScrollReveal direction="up" duration={800}>
+            <Card className="glass-card">
+              <CardHeader className="border-b border-white/5 pb-4">
+                <CardTitle className="flex items-center gap-2 text-white">
+                  <Search className="w-5 h-5 text-blue-400" />
+                  Real-Time Search Trends (India)
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  Top surging queries over the last 24 hours based on search volume velocity.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[
+                    { query: "IPL 2026 Playoffs", volume: "3.2M+", growth: "+185%", color: "bg-blue-500", percent: 95 },
+                    { query: "US-Iran Ceasefire", volume: "1.8M+", growth: "+210%", color: "bg-emerald-500", percent: 85 },
+                    { query: "Karnataka CM News", volume: "950K+", growth: "+120%", color: "bg-purple-500", percent: 75 },
+                    { query: "NSE India / VBL", volume: "720K+", growth: "+64%", color: "bg-rose-500", percent: 65 },
+                    { query: "Eid ul-Adha 2026 Wishes", volume: "550K+", growth: "+312%", color: "bg-amber-500", percent: 55 },
+                    { query: "Vaibhav Sooryavanshi", volume: "410K+", growth: "+85%", color: "bg-cyan-500", percent: 45 },
+                  ].map((trend, i) => (
+                    <div key={i} className="bg-white/[0.02] border border-white/5 p-4 rounded-xl hover:bg-white/[0.04] transition-colors group flex flex-col justify-center">
+                      <div className="flex justify-between items-center mb-3">
+                        <div>
+                          <h4 className="text-white font-bold text-lg group-hover:text-blue-400 transition-colors">{trend.query}</h4>
+                          <p className="text-xs text-gray-500 mt-0.5">Est. Volume: {trend.volume}</p>
+                        </div>
+                        <div className="flex items-center gap-1 bg-green-500/10 text-green-400 px-2.5 py-1 rounded-md border border-green-500/20">
+                          <TrendingUp className="w-3.5 h-3.5" />
+                          <span className="text-xs font-bold">{trend.growth}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1 bg-green-500/10 text-green-400 px-2.5 py-1 rounded-md border border-green-500/20">
-                        <TrendingUp className="w-3.5 h-3.5" />
-                        <span className="text-xs font-bold">{trend.growth}</span>
+                      {/* Progress Bar styled like Regional Analysis */}
+                      <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full ${trend.color} rounded-full transition-all duration-1000 ease-out`} 
+                          style={{ width: `${trend.percent}%` }}
+                        ></div>
                       </div>
                     </div>
-                    {/* Progress Bar styled like Regional Analysis */}
-                    <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full ${trend.color} rounded-full transition-all duration-1000 ease-out`} 
-                        style={{ width: `${trend.percent}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </ScrollReveal>
         </div>
 
         {/* Regional Interest Map */}
         <div className="mt-12">
-          <Card className="glass-card">
-            <CardHeader>
-              <CardTitle className="text-white">Regional Analysis: "Cricket World Cup"</CardTitle>
-              <CardDescription className="text-gray-400">
-                Advanced interest mapping by state over the past 30 days
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <RegionMap />
-            </CardContent>
-          </Card>
+          <ScrollReveal direction="scale" duration={900}>
+            <Card className="glass-card">
+              <CardHeader>
+                <CardTitle className="text-white">Regional Analysis: &quot;Cricket World Cup&quot;</CardTitle>
+                <CardDescription className="text-gray-400">
+                  Advanced interest mapping by state over the past 30 days
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RegionMap />
+              </CardContent>
+            </Card>
+          </ScrollReveal>
         </div>
 
         {/* Regional Trends */}
         <div className="mt-12">
-          <RegionalTrends />
+          <ScrollReveal direction="left" duration={800}>
+            <RegionalTrends />
+          </ScrollReveal>
         </div>
 
         {/* Cultural Events */}
         <div className="mt-12">
-          <CulturalEvents />
+          <ScrollReveal direction="right" duration={800}>
+            <CulturalEvents />
+          </ScrollReveal>
         </div>
 
         {/* Local News */}
         <div className="mt-12">
-          <LocalNews />
+          <ScrollReveal direction="up" duration={800}>
+            <LocalNews />
+          </ScrollReveal>
         </div>
       </div>
     </div>
   )
 }
+

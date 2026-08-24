@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { checkRateLimit } from "@/lib/security"
 
 // Category-specific RSS feeds from reliable Indian news sources (no API key required)
 const RSS_FEEDS: Record<string, Array<{ url: string; source: string; category: string }>> = {
@@ -90,6 +91,10 @@ async function parseFeed(feed: { url: string; source: string; category: string }
 }
 
 export async function GET(request: Request) {
+  // Rate limiting
+  const rateLimited = checkRateLimit(request)
+  if (rateLimited) return rateLimited
+
   try {
     const { searchParams } = new URL(request.url)
     const category = (searchParams.get("cat") || "all").toLowerCase()

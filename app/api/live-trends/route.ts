@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { checkRateLimit } from "@/lib/security"
 
 // Free Indian news RSS feeds — no API key needed, always available
 const INDIA_RSS_FEEDS = [
@@ -87,7 +88,11 @@ async function parseFeed(feed: typeof INDIA_RSS_FEEDS[0]): Promise<any[]> {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  // Rate limiting
+  const rateLimited = checkRateLimit(request)
+  if (rateLimited) return rateLimited
+
   try {
     // Fetch all feeds in parallel
     const results = await Promise.allSettled(INDIA_RSS_FEEDS.map(parseFeed))

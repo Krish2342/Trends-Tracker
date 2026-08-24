@@ -1,9 +1,10 @@
 "use client"
 
 import type React from "react"
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 
 import { useAuth } from "../contexts/AuthContext"
-import { AuthModal } from "./auth/AuthModal"
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -39,13 +40,16 @@ function LoadingSkeleton() {
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { isAuthenticated, isLoading } = useAuth()
+  const router = useRouter()
 
-  if (isLoading) {
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push("/login")
+    }
+  }, [isLoading, isAuthenticated, router])
+
+  if (isLoading || !isAuthenticated) {
     return <LoadingSkeleton />
-  }
-
-  if (!isAuthenticated) {
-    return <AuthModal />
   }
 
   return <>{children}</>

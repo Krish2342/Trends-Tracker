@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server"
 import { generateContextualRelated } from "../../utils/relatedData"
+import { checkRateLimit } from "@/lib/security"
 
 export async function GET(request: Request) {
+  // Rate limiting
+  const rateLimited = checkRateLimit(request)
+  if (rateLimited) return rateLimited
+
   try {
     const { searchParams } = new URL(request.url)
     const query = searchParams.get("q") || ""

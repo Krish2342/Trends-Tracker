@@ -1,7 +1,16 @@
 import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
+import { checkRateLimit, verifyAuth, unauthorizedResponse, sanitizeInput, isValidEmail, limitLength } from '@/lib/security';
 
 export async function POST(request: Request) {
+  // 1. Rate limiting — max 30 requests/minute per IP
+  const rateLimited = checkRateLimit(request)
+  if (rateLimited) return rateLimited
+
+  // 2. Auth check — only logged-in users can send contact forms
+  const user = await verifyAuth(request)
+  if (!user) return unauthorizedResponse()
+
   try {
     const body = await request.json();
     const { name, email, subject, message } = body;
@@ -13,6 +22,20 @@ export async function POST(request: Request) {
       );
     }
 
+    // 3. Validate email
+    if (!isValidEmail(email)) {
+      return NextResponse.json(
+        { error: 'Invalid email address' },
+        { status: 400 }
+      );
+    }
+
+    // 4. Sanitize all inputs to prevent XSS / HTML injection
+    const safeName = sanitizeInput(limitLength(name, 100))
+    const safeEmail = sanitizeInput(limitLength(email, 254))
+    const safeSubject = sanitizeInput(limitLength(subject, 200))
+    const safeMessage = sanitizeInput(limitLength(message, 5000))
+
     // Configure the Nodemailer transporter
     const transporter = nodemailer.createTransport({
       service: 'gmail',
@@ -22,21 +45,21 @@ export async function POST(request: Request) {
       },
     });
 
-    // Setup email data
+    // Setup email data — all user inputs are sanitized
     const mailOptions = {
-      from: `"${name}" <${process.env.EMAIL_USER || 'pkrish2304@gmail.com'}>`, // Needs to be the authenticated user to avoid spam filters
-      replyTo: email,
-      to: 'pkrish2304@gmail.com', // Send TO this address (per user request)
-      subject: `New Support Ticket: ${subject}`,
-      text: `Name: ${name}\nEmail: ${email}\nSubject: ${subject}\n\nMessage:\n${message}`,
+      from: `"${safeName}" <${process.env.EMAIL_USER || 'pkrish2304@gmail.com'}>`, // Uses sanitized name
+      replyTo: safeEmail,
+      to: 'pkrish2304@gmail.com', // Send TO this address
+      subject: `New Support Ticket: ${safeSubject}`,
+      text: `Name: ${safeName}\nEmail: ${safeEmail}\nSubject: ${safeSubject}\n\nMessage:\n${safeMessage}`,
       html: `
         <h3>New Support Ticket from TrendsTracker</h3>
-        <p><strong>Name:</strong> ${name}</p>
-        <p><strong>Email:</strong> ${email}</p>
-        <p><strong>Subject:</strong> ${subject}</p>
+        <p><strong>Name:</strong> ${safeName}</p>
+        <p><strong>Email:</strong> ${safeEmail}</p>
+        <p><strong>Subject:</strong> ${safeSubject}</p>
         <hr />
         <p><strong>Message:</strong></p>
-        <p style="white-space: pre-wrap;">${message}</p>
+        <p style="white-space: pre-wrap;">${safeMessage}</p>
       `,
     };
 
@@ -52,3 +75,4 @@ export async function POST(request: Request) {
     );
   }
 }
+

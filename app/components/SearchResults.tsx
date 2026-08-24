@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { TrendingUp, Clock, ExternalLink } from "lucide-react"
@@ -36,7 +37,19 @@ function formatTimeAgo(dateStr: string) {
   }
 }
 
+// Strip HTML tags from a string to get plain text
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/<[^>]*>/g, "").trim()
+}
+
 export function SearchResults({ searchTerm, isLoading = false, articles = [] }: SearchResultsProps) {
+  // Defer time rendering to client only to avoid hydration mismatch
+  const [currentTime, setCurrentTime] = useState<string>("")
+
+  useEffect(() => {
+    setCurrentTime(new Date().toLocaleTimeString())
+  }, [searchTerm, articles])
+
   if (!searchTerm) return null
 
   if (isLoading) {
@@ -80,53 +93,57 @@ export function SearchResults({ searchTerm, isLoading = false, articles = [] }: 
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-white">
           <TrendingUp className="w-5 h-5 text-blue-400" />
-          Real-time Coverage: "{searchTerm}"
+          Real-time Coverage: &quot;{searchTerm}&quot;
         </CardTitle>
         <CardDescription className="text-gray-400">
-          Found {displayArticles.length} recent articles and trends • Updated {new Date().toLocaleTimeString()}
+          Found {displayArticles.length} recent articles and trends{currentTime ? ` • Updated ${currentTime}` : ""}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {displayArticles.map((article, index) => (
-            <a
-              key={index}
-              href={article.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block p-4 rounded-lg border border-white/10 hover:border-blue-500/50 hover:bg-white/5 transition-all duration-200"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="text-sm font-bold text-blue-400">{index + 1}</span>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-200 hover:text-blue-400 transition-colors">
-                      {article.title}
-                    </h3>
-                    {article.description && (
-                      <p className="text-sm text-gray-400 mt-1 line-clamp-2">
-                        {article.description}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-3 mt-2 flex-wrap text-xs">
-                      <Badge variant="secondary" className="bg-blue-950/40 text-blue-300 border-blue-800/30">
-                        {article.source}
-                      </Badge>
-                      <span className="text-gray-500 flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {formatTimeAgo(article.publishedAt)}
-                      </span>
+          {displayArticles.map((article, index) => {
+            const cleanDescription = article.description ? stripHtml(article.description) : ""
+            return (
+              <a
+                key={index}
+                href={article.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block p-4 rounded-lg border border-white/10 hover:border-blue-500/50 hover:bg-white/5 transition-all duration-200 overflow-hidden"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <span className="text-sm font-bold text-blue-400">{index + 1}</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-semibold text-gray-200 hover:text-blue-400 transition-colors break-words">
+                        {article.title}
+                      </h3>
+                      {cleanDescription && (
+                        <p className="text-sm text-gray-400 mt-1 line-clamp-2 break-words overflow-hidden">
+                          {cleanDescription}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-3 mt-2 flex-wrap text-xs">
+                        <Badge variant="secondary" className="bg-blue-950/40 text-blue-300 border-blue-800/30">
+                          {article.source}
+                        </Badge>
+                        <span className="text-gray-500 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {formatTimeAgo(article.publishedAt)}
+                        </span>
+                      </div>
                     </div>
                   </div>
+                  <ExternalLink className="w-4 h-4 text-gray-400 shrink-0 mt-1 group-hover:text-blue-400" />
                 </div>
-                <ExternalLink className="w-4 h-4 text-gray-400 shrink-0 mt-1 group-hover:text-blue-400" />
-              </div>
-            </a>
-          ))}
+              </a>
+            )
+          })}
         </div>
       </CardContent>
     </Card>
   )
 }
+

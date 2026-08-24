@@ -1,6 +1,8 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { supabase } from "@/lib/supabase"
+import type { User as SupabaseUser } from "@supabase/supabase-js"
 
 interface User {
   id: string
@@ -10,23 +12,17 @@ interface User {
   createdAt: string
 }
 
-interface StoredUser extends User {
-  passwordHash: string
-}
-
 interface AuthContextType {
   user: User | null
   isLoading: boolean
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
   signup: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>
+  loginWithOAuth: (provider: 'google' | 'github', redirectTo?: string) => Promise<{ success: boolean; error?: string }>
   logout: () => void
   isAuthenticated: boolean
+  getAccessToken: () => Promise<string | null>
   requestPasswordReset: (email: string) => Promise<{ success: boolean; error?: string }>
-  resetPassword: (token: string, newPassword: string) => Promise<{ success: boolean; error?: string }>
-  isAuthModalOpen: boolean
-  setAuthModalOpen: (open: boolean) => void
-  openAuthModal: (onSuccess?: () => void) => void
-  closeAuthModal: () => void
+  resetPassword: (password: string) => Promise<{ success: boolean; error?: string }>
   searchHistory: string[]
   favorites: string[]
   addSearchHistory: (term: string) => void
@@ -38,249 +34,122 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Storage keys
-const USERS_KEY = "trends-users"
-const SESSION_KEY = "trends-user"
-const RESET_TOKENS_KEY = "trends-reset-tokens"
-
-// Simple hash function for passwords (not cryptographic — use bcrypt on server in production)
-function simpleHash(str: string): string {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i)
-    hash = (hash << 5) - hash + char
-    hash = hash & hash
-  }
-  return `h_${Math.abs(hash).toString(36)}_${str.length}`
-}
-
-// Persistent storage helpers
-function getStoredUsers(): StoredUser[] {
-  if (typeof window === "undefined") return []
-  try {
-    const raw = localStorage.getItem(USERS_KEY)
-    if (!raw) {
-      // Seed the default demo user on first load
-      const demo: StoredUser = {
-        id: "demo-001",
-        email: "demo@example.com",
-        passwordHash: simpleHash("password123"),
-        name: "Demo User",
-        avatar: "https://avatar.vercel.sh/demo",
-        createdAt: "2024-01-01T00:00:00Z",
-      }
-      localStorage.setItem(USERS_KEY, JSON.stringify([demo]))
-      return [demo]
-    }
-    return JSON.parse(raw) as StoredUser[]
-  } catch {
-    return []
-  }
-}
-
-function saveStoredUsers(users: StoredUser[]): void {
-  if (typeof window === "undefined") return
-  localStorage.setItem(USERS_KEY, JSON.stringify(users))
-}
-
-interface ResetToken {
-  email: string
-  expires: number
-}
-
-function getResetTokens(): Record<string, ResetToken> {
-  if (typeof window === "undefined") return {}
-  try {
-    const raw = localStorage.getItem(RESET_TOKENS_KEY)
-    return raw ? JSON.parse(raw) : {}
-  } catch {
-    return {}
-  }
-}
-
-function saveResetTokens(tokens: Record<string, ResetToken>): void {
-  if (typeof window === "undefined") return
-  localStorage.setItem(RESET_TOKENS_KEY, JSON.stringify(tokens))
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isAuthModalOpen, setAuthModalOpen] = useState(false)
-  const [onSuccessCb, setOnSuccessCb] = useState<(() => void) | null>(null)
 
-  const openAuthModal = (onSuccess?: () => void) => {
-    if (onSuccess) {
-      setOnSuccessCb(() => onSuccess)
-    } else {
-      setOnSuccessCb(null)
+  const [searchHistory, setSearchHistory] = useState<string[]>([])
+  const [favorites, setFavorites] = useState<string[]>([])
+
+  const mapSupabaseUser = (su: SupabaseUser): User => {
+    return {
+      id: su.id,
+      email: su.email || "",
+      name: su.user_metadata?.name || su.user_metadata?.full_name || "User",
+      avatar: su.user_metadata?.avatar_url || `https://avatar.vercel.sh/${encodeURIComponent(su.email || 'user')}`,
+      createdAt: su.created_at,
     }
-    setAuthModalOpen(true)
   }
 
-  const closeAuthModal = () => {
-    setOnSuccessCb(null)
-    setAuthModalOpen(false)
-  }
-
-  // Restore session on app start
   useEffect(() => {
-    try {
-      const savedUser = localStorage.getItem(SESSION_KEY)
-      if (savedUser) {
-        setUser(JSON.parse(savedUser))
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser(mapSupabaseUser(session.user))
       }
-    } catch {
-      localStorage.removeItem(SESSION_KEY)
-    } finally {
       setIsLoading(false)
-    }
+    })
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser(mapSupabaseUser(session.user))
+      } else {
+        setUser(null)
+      }
+      setIsLoading(false)
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
 
   const login = async (email: string, password: string) => {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 800))
-
-      const users = getStoredUsers()
-      const found = users.find(
-        (u) => u.email.toLowerCase() === email.toLowerCase() && u.passwordHash === simpleHash(password)
-      )
-
-      if (!found) {
-        return { success: false, error: "Invalid email or password" }
-      }
-
-      const sessionUser: User = {
-        id: found.id,
-        email: found.email,
-        name: found.name,
-        avatar: found.avatar,
-        createdAt: found.createdAt,
-      }
-
-      setUser(sessionUser)
-      localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser))
-
-      if (onSuccessCb) {
-        onSuccessCb()
-      }
-      setOnSuccessCb(null)
-      setAuthModalOpen(false)
-
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) throw error
       return { success: true }
-    } catch {
-      return { success: false, error: "Login failed. Please try again." }
+    } catch (err: any) {
+      return { success: false, error: err.message || "Login failed" }
     }
   }
 
   const signup = async (name: string, email: string, password: string) => {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 800))
-
-      const users = getStoredUsers()
-      const exists = users.find((u) => u.email.toLowerCase() === email.toLowerCase())
-      if (exists) {
-        return { success: false, error: "An account with this email already exists" }
-      }
-
-      const newUser: StoredUser = {
-        id: `user_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      const { error } = await supabase.auth.signUp({
         email,
-        passwordHash: simpleHash(password),
-        name,
-        avatar: `https://avatar.vercel.sh/${encodeURIComponent(name)}`,
-        createdAt: new Date().toISOString(),
-      }
-
-      users.push(newUser)
-      saveStoredUsers(users)
-
-      const sessionUser: User = {
-        id: newUser.id,
-        email: newUser.email,
-        name: newUser.name,
-        avatar: newUser.avatar,
-        createdAt: newUser.createdAt,
-      }
-
-      setUser(sessionUser)
-      localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser))
-
-      if (onSuccessCb) {
-        onSuccessCb()
-      }
-      setOnSuccessCb(null)
-      setAuthModalOpen(false)
-
+        password,
+        options: {
+          data: { name }
+        }
+      })
+      if (error) throw error
       return { success: true }
-    } catch {
-      return { success: false, error: "Signup failed. Please try again." }
+    } catch (err: any) {
+      return { success: false, error: err.message || "Signup failed" }
     }
+  }
+
+  const loginWithOAuth = async (provider: 'google' | 'github', redirectTo?: string) => {
+    try {
+      // Build the redirect URL: after OAuth, Supabase redirects here
+      let callbackUrl = typeof window !== 'undefined' ? window.location.origin : undefined
+      if (redirectTo && callbackUrl) {
+        callbackUrl = `${callbackUrl}${redirectTo}`
+      }
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: callbackUrl
+        }
+      })
+      if (error) throw error
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message || `${provider} login failed` }
+    }
+  }
+
+  const logout = async () => {
+    await supabase.auth.signOut()
+    setUser(null)
   }
 
   const requestPasswordReset = async (email: string) => {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-
-      const users = getStoredUsers()
-      const found = users.find((u) => u.email.toLowerCase() === email.toLowerCase())
-
-      // Always return success for security (don't reveal if email exists)
-      if (!found) return { success: true }
-
-      const token = `rst_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 11)}`
-      const expires = Date.now() + 24 * 60 * 60 * 1000 // 24 hours
-
-      const tokens = getResetTokens()
-      tokens[token] = { email: found.email, expires }
-      saveResetTokens(tokens)
-
-      // In production: send email. For demo, log to console.
-      console.info(`[Password Reset] Token for ${email}: /reset-password?token=${token}`)
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/reset-password` : undefined,
+      })
+      if (error) throw error
       return { success: true }
-    } catch {
-      return { success: false, error: "Failed to send reset email. Please try again." }
+    } catch (err: any) {
+      return { success: false, error: err.message || "Failed to send reset email" }
     }
   }
 
-  const resetPassword = async (token: string, newPassword: string) => {
+  const resetPassword = async (password: string) => {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      const tokens = getResetTokens()
-      const tokenData = tokens[token]
-
-      if (!tokenData || tokenData.expires < Date.now()) {
-        return { success: false, error: "Invalid or expired reset link. Please request a new one." }
-      }
-
-      const users = getStoredUsers()
-      const idx = users.findIndex((u) => u.email.toLowerCase() === tokenData.email.toLowerCase())
-      if (idx === -1) {
-        return { success: false, error: "Account not found." }
-      }
-
-      users[idx].passwordHash = simpleHash(newPassword)
-      saveStoredUsers(users)
-
-      // Invalidate the used token
-      delete tokens[token]
-      saveResetTokens(tokens)
-
+      const { error } = await supabase.auth.updateUser({ password })
+      if (error) throw error
       return { success: true }
-    } catch {
-      return { success: false, error: "Failed to reset password. Please try again." }
+    } catch (err: any) {
+      return { success: false, error: err.message || "Failed to reset password" }
     }
   }
-
-  const [searchHistory, setSearchHistory] = useState<string[]>([])
-  const [favorites, setFavorites] = useState<string[]>([])
 
   useEffect(() => {
     if (user) {
       const storedHistory = localStorage.getItem(`trends-history-${user.id}`)
       setSearchHistory(storedHistory ? JSON.parse(storedHistory) : [])
-
       const storedFavorites = localStorage.getItem(`trends-favorites-${user.id}`)
       setFavorites(storedFavorites ? JSON.parse(storedFavorites) : ["Cricket", "IPL", "Bollywood", "Technology"])
     } else {
@@ -321,56 +190,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
   }
 
-  const updateUserProfile = async (name: string, avatar?: string) => {
+  const updateUserProfile = async (name: string, avatarUrl?: string) => {
     if (!user) return { success: false, error: "Not authenticated" }
     try {
-      const users = getStoredUsers()
-      const idx = users.findIndex((u) => u.id === user.id)
-      if (idx === -1) return { success: false, error: "User not found" }
-
-      const updatedUser = { ...users[idx], name, avatar: avatar || users[idx].avatar }
-      users[idx] = updatedUser
-      saveStoredUsers(users)
-
-      const sessionUser = {
-        id: updatedUser.id,
-        email: updatedUser.email,
-        name: updatedUser.name,
-        avatar: updatedUser.avatar,
-        createdAt: updatedUser.createdAt,
-      }
-      setUser(sessionUser)
-      localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser))
-
+      const { error } = await supabase.auth.updateUser({
+        data: { name, avatar_url: avatarUrl }
+      })
+      if (error) throw error
       return { success: true }
-    } catch {
-      return { success: false, error: "Failed to update profile" }
+    } catch (err: any) {
+      return { success: false, error: err.message || "Failed to update profile" }
     }
   }
 
   const updateUserPassword = async (currentPassword: string, newPassword: string) => {
     if (!user) return { success: false, error: "Not authenticated" }
     try {
-      const users = getStoredUsers()
-      const idx = users.findIndex((u) => u.id === user.id)
-      if (idx === -1) return { success: false, error: "User not found" }
-
-      const currentHash = simpleHash(currentPassword)
-      if (users[idx].passwordHash !== currentHash) {
-        return { success: false, error: "Incorrect current password" }
-      }
-
-      users[idx].passwordHash = simpleHash(newPassword)
-      saveStoredUsers(users)
+      const { error } = await supabase.auth.updateUser({ password: newPassword })
+      if (error) throw error
       return { success: true }
-    } catch {
-      return { success: false, error: "Failed to update password" }
+    } catch (err: any) {
+      return { success: false, error: err.message || "Failed to update password" }
     }
   }
 
-  const logout = () => {
-    setUser(null)
-    localStorage.removeItem(SESSION_KEY)
+  // Get the current Supabase access token for authenticated API calls
+  const getAccessToken = async (): Promise<string | null> => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      return session?.access_token || null
+    } catch {
+      return null
+    }
   }
 
   const value: AuthContextType = {
@@ -378,14 +229,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading,
     login,
     signup,
+    loginWithOAuth,
     logout,
     isAuthenticated: !!user,
+    getAccessToken,
     requestPasswordReset,
     resetPassword,
-    isAuthModalOpen,
-    setAuthModalOpen,
-    openAuthModal,
-    closeAuthModal,
     searchHistory,
     favorites,
     addSearchHistory,

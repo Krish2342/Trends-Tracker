@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Eye, EyeOff, Lock, AlertCircle, Loader2, CheckCircle, Shield, Key } from "lucide-react"
 
+import { useAuth } from "../../contexts/AuthContext"
+
 interface ResetPasswordFormProps {
   token: string
   onSuccess: () => void
@@ -23,6 +25,8 @@ export function ResetPasswordForm({ token, onSuccess, onBackToLogin }: ResetPass
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [tokenValid, setTokenValid] = useState<boolean | null>(null)
+  
+  const { resetPassword } = useAuth()
 
   // Password strength validation
   const validatePassword = (password: string) => {
@@ -86,11 +90,12 @@ export function ResetPasswordForm({ token, onSuccess, onBackToLogin }: ResetPass
     }
 
     try {
-      // Simulate API call to reset password
-      await new Promise((resolve) => setTimeout(resolve, 2000))
-
-      // In real app, you would call your password reset API here
-      // await resetPassword(token, password)
+      const result = await resetPassword(password)
+      
+      if (!result.success) {
+        setError(result.error || "Failed to reset password. Please try again.")
+        return
+      }
 
       onSuccess()
     } catch (err) {

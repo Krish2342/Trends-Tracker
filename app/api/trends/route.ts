@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { checkRateLimit, verifyAuth, unauthorizedResponse } from "@/lib/security"
 
 const GNEWS_API_KEY = process.env.GNEWS_API_KEY
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY
@@ -114,6 +115,14 @@ function getQuerySeed(str: string): number {
 }
 
 export async function GET(request: Request) {
+  // Rate limiting
+  const rateLimited = checkRateLimit(request)
+  if (rateLimited) return rateLimited
+
+  // Auth check — only logged-in users can search trends
+  const user = await verifyAuth(request)
+  if (!user) return unauthorizedResponse()
+
   try {
     const { searchParams } = new URL(request.url)
     const query = searchParams.get("q") || "India"

@@ -19,11 +19,15 @@ export default function HomePage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [trendingSearches, setTrendingSearches] = useState<string[]>([])
   const [featuredTrend, setFeaturedTrend] = useState("India")
+  const [heroChartData, setHeroChartData] = useState<{ month: string; date: string; value: number }[]>([])
+  const [heroArticles, setHeroArticles] = useState<{ title: string; url: string; source: string; publishedAt: string }[]>([])
+  const [heroChartLoading, setHeroChartLoading] = useState(true)
 
   const { user, isAuthenticated, isLoading: authLoading } = useAuth()
 
-  // Fetch real trending topics for hero pills & featured chart
+  // Fetch real trending topics for hero pills & featured chart (PUBLIC endpoint)
   useEffect(() => {
+    setHeroChartLoading(true)
     fetch("/api/live-trends")
       .then((r) => r.json())
       .then((data) => {
@@ -32,18 +36,42 @@ export default function HomePage() {
           const keywords = data.trends
             .slice(0, 6)
             .map((t: any) => {
-              // Take first 4-5 words of the headline as the pill label
               return t.keyword.split(" ").slice(0, 4).join(" ")
             })
           setTrendingSearches(keywords)
-          // Use the first headline as the featured trend in the chart
           setFeaturedTrend(data.trends[0].keyword.split(" ").slice(0, 3).join(" "))
+
+          // Build chart data from live trends — use publish timestamps to create a timeline
+          const now = new Date()
+          const chartPoints = data.trends.slice(0, 12).map((t: any, i: number) => {
+            const pubDate = new Date(t.publishedAt || t.timestamp)
+            const monthName = pubDate.toLocaleString("default", { month: "short" })
+            // Extract numeric search value as interest score
+            const searchNum = parseInt((t.searches || "100").replace(/[^0-9]/g, "")) || 50
+            const value = Math.min(100, Math.max(10, Math.round(searchNum / 10)))
+            return {
+              month: `${monthName} ${i + 1}`,
+              date: pubDate.toISOString().slice(0, 10),
+              value,
+            }
+          })
+          setHeroChartData(chartPoints)
+
+          // Build articles list from live trends
+          setHeroArticles(
+            data.trends.slice(0, 5).map((t: any) => ({
+              title: t.keyword,
+              url: t.url,
+              source: t.source,
+              publishedAt: t.publishedAt || "",
+            }))
+          )
         }
       })
       .catch(() => {
-        // Fallback to static labels on error
         setTrendingSearches(["India News", "Cricket", "Bollywood", "Tech India", "Politics"])
       })
+      .finally(() => setHeroChartLoading(false))
   }, [])
 
   const handleSearch = () => {
@@ -221,7 +249,12 @@ export default function HomePage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <DynamicTrendChart searchTerm={featuredTrend || "India"} />
+                  <DynamicTrendChart
+                    searchTerm={featuredTrend || "India"}
+                    chartData={heroChartData}
+                    articles={heroArticles}
+                    isLoading={heroChartLoading}
+                  />
                 </CardContent>
               </Card>
             </ScrollReveal>

@@ -98,7 +98,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         password,
         options: {
-          data: { name }
+          data: { name },
+          emailRedirectTo: typeof window !== 'undefined'
+            ? `${window.location.origin}/auth/callback?next=${encodeURIComponent("/")}`
+            : undefined,
         }
       })
       if (error) throw error
@@ -113,13 +116,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginWithOAuth = async (provider: 'google' | 'github', redirectTo?: string) => {
     try {
-      // Build the redirect URL: after OAuth, Supabase redirects here
-      let callbackUrl = typeof window !== 'undefined' ? window.location.origin : undefined
-      if (redirectTo && callbackUrl) {
-        callbackUrl = `${callbackUrl}${redirectTo}`
-      } else if (callbackUrl) {
-        callbackUrl = `${callbackUrl}/`
+      if (typeof window === 'undefined') {
+        return { success: false, error: "OAuth login is only available in a browser" }
       }
+
+      const nextPath = redirectTo?.startsWith("/") ? redirectTo : "/"
+      const callbackUrl = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
@@ -127,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       })
       if (error) throw error
-      if (data?.url && typeof window !== 'undefined') {
+      if (data?.url) {
         window.location.href = data.url
       }
       return { success: true }

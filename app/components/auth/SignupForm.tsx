@@ -267,7 +267,7 @@ export function SignupForm() {
               type="button"
               variant="outline"
               className="bg-white/5 border-white/20 text-white hover:bg-white/10"
-              onClick={() => loginWithOAuth('github')}
+              onClick={() => loginWithOAuth('github', '/')}
               disabled={isLoading}
             >
               GitHub
@@ -276,7 +276,7 @@ export function SignupForm() {
               type="button"
               variant="outline"
               className="bg-white/5 border-white/20 text-white hover:bg-white/10"
-              onClick={() => loginWithOAuth('google')}
+              onClick={() => loginWithOAuth('google', '/')}
               disabled={isLoading}
             >
               Google

@@ -27,11 +27,23 @@ function AuthCallbackContent() {
           if (active) setError(exchangeError.message)
           return
         }
+      } else {
+        const hash = new URLSearchParams(window.location.hash.slice(1))
+        const accessToken = hash.get("access_token")
+        const refreshToken = hash.get("refresh_token")
+
+        if (accessToken && refreshToken) {
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+          if (sessionError) {
+            if (active) setError(sessionError.message)
+            return
+          }
+        }
       }
 
-      // Supabase may return an implicit-flow access token in the URL hash
-      // when an older deployment or provider configuration is still active.
-      // The Supabase client consumes that hash and persists the session.
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       if (sessionError) {
         if (active) setError(sessionError.message)

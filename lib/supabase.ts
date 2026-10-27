@@ -10,7 +10,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     flowType: "pkce",
-    detectSessionInUrl: true,
+    // The callback page performs the code exchange exactly once.
+    detectSessionInUrl: false,
     persistSession: true,
     autoRefreshToken: true,
   },

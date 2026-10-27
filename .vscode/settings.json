@@ -19,12 +19,21 @@
     "net"
   ],
   "[typescript]": {
-    "editor.defaultFormatter": "denoland.vscode-deno"
+    "editor.defaultFormatter": "vscode.typescript-language-features"
   },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features"
+  },
+  "css.lint.unknownAtRules": "ignore",
+  "scss.lint.unknownAtRules": "ignore",
+  "less.lint.unknownAtRules": "ignore",
   "css.validate": false,
   "less.validate": false,
   "scss.validate": false,
   "files.associations": {
     "*.css": "tailwindcss"
+  },
+  "editor.quickSuggestions": {
+    "strings": "on"
   }
 }

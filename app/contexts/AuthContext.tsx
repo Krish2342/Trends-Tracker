@@ -16,7 +16,7 @@ interface AuthContextType {
   user: User | null
   isLoading: boolean
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
-  signup: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>
+  signup: (name: string, email: string, password: string) => Promise<{ success: boolean; needsEmailVerification?: boolean; error?: string }>
   loginWithOAuth: (provider: 'google' | 'github', redirectTo?: string) => Promise<{ success: boolean; error?: string }>
   logout: () => void
   isAuthenticated: boolean
@@ -51,6 +51,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const formatAuthError = (err: any, fallback: string): string => {
+    if (!err) return fallback
+    const msg = err.message || ""
+    if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
+      return "Unable to connect to the authentication server. Please check your internet connection or try again."
+    }
+    return msg || fallback
+  }
+
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -79,13 +88,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw error
       return { success: true }
     } catch (err: any) {
-      return { success: false, error: err.message || "Login failed" }
+      return { success: false, error: formatAuthError(err, "Login failed") }
     }
   }
 
   const signup = async (name: string, email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -93,9 +102,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       })
       if (error) throw error
-      return { success: true }
+      return {
+        success: true,
+        needsEmailVerification: !data.session && !!data.user
+      }
     } catch (err: any) {
-      return { success: false, error: err.message || "Signup failed" }
+      return { success: false, error: formatAuthError(err, "Signup failed") }
     }
   }
 
@@ -105,17 +117,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       let callbackUrl = typeof window !== 'undefined' ? window.location.origin : undefined
       if (redirectTo && callbackUrl) {
         callbackUrl = `${callbackUrl}${redirectTo}`
+      } else if (callbackUrl) {
+        callbackUrl = `${callbackUrl}/`
       }
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
           redirectTo: callbackUrl
         }
       })
       if (error) throw error
+      if (data?.url && typeof window !== 'undefined') {
+        window.location.href = data.url
+      }
       return { success: true }
     } catch (err: any) {
-      return { success: false, error: err.message || `${provider} login failed` }
+      return { success: false, error: formatAuthError(err, `${provider} login failed`) }
     }
   }
 

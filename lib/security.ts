@@ -74,13 +74,16 @@ export async function verifyAuth(request: Request): Promise<{ id: string; email?
     const token = authHeader.substring(7)
     if (!token) return null
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseUrl =
+      process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://vrczzcqxayqtzmwsozbm.supabase.co'
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
     // If service role key is not configured, fall back to anon key
-    const supabaseKey = supabaseServiceKey && supabaseServiceKey !== "your-service-role-key-here"
-      ? supabaseServiceKey
-      : process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    const supabaseKey =
+      supabaseServiceKey && supabaseServiceKey !== "your-service-role-key-here"
+        ? supabaseServiceKey
+        : (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZyY3p6Y3F4YXlxdHptd3NvemJtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDAyMDEsImV4cCI6MjA5NTg3NjIwMX0.i73tiN87YtYl6ZbyjnAhPyiW8NHZnd4dmc7eqfr6Lxc')
 
     if (!supabaseUrl || !supabaseKey) return null
 

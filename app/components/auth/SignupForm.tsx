@@ -24,6 +24,7 @@ export function SignupForm() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [isSuccess, setIsSuccess] = useState(false)
   const { signup, loginWithOAuth } = useAuth()
 
   const validatePassword = (password: string) => {
@@ -57,12 +58,46 @@ export function SignupForm() {
       const result = await signup(name, email, password)
       if (!result.success) {
         setError(result.error || "Signup failed")
+      } else if (result.needsEmailVerification) {
+        setIsSuccess(true)
+      } else {
+        window.location.href = "/"
       }
     } catch (err) {
       setError("Something went wrong. Please try again.")
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (isSuccess) {
+    return (
+      <Card className="w-full max-w-md mx-auto glass-card app-glow">
+        <CardHeader className="text-center">
+          <div className="flex items-center justify-center mb-4">
+            <CheckCircle className="h-12 w-12 text-green-400" />
+          </div>
+          <CardTitle className="text-2xl font-bold text-white text-glow">Check Your Email</CardTitle>
+          <CardDescription className="text-gray-300 mt-2">
+            We have sent a confirmation link to <span className="text-white font-medium">{email}</span>. Please verify your email to log in.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button asChild className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 border-0 app-glow">
+            <Link href="/login">Go to Sign In</Link>
+          </Button>
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={() => setIsSuccess(false)}
+              className="text-xs text-gray-400 hover:text-white transition-colors"
+            >
+              Use a different email
+            </button>
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (

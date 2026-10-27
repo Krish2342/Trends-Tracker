@@ -21,19 +21,29 @@ function AuthCallbackContent() {
       }
 
       const code = searchParams.get("code")
-      if (!code) {
-        if (active) setError("The authentication callback did not contain a valid code.")
-        return
+      if (code) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+        if (exchangeError) {
+          if (active) setError(exchangeError.message)
+          return
+        }
       }
 
-      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-      if (exchangeError) {
-        if (active) setError(exchangeError.message)
+      // Supabase may return an implicit-flow access token in the URL hash
+      // when an older deployment or provider configuration is still active.
+      // The Supabase client consumes that hash and persists the session.
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) {
+        if (active) setError(sessionError.message)
+        return
+      }
+      if (!session) {
+        if (active) setError("No authenticated session was returned. Please try again.")
         return
       }
 
       const nextPath = searchParams.get("next")
-      router.replace(nextPath?.startsWith("/") ? nextPath : "/")
+      window.location.replace(nextPath?.startsWith("/") ? nextPath : "/")
     }
 
     completeSignIn()

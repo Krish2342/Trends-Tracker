@@ -1,22 +1,30 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { Suspense, useEffect, useRef, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 
 function AuthCallbackContent() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const [error, setError] = useState("")
+  const hasStarted = useRef(false)
 
   useEffect(() => {
+    if (hasStarted.current) return
+    hasStarted.current = true
     let active = true
 
     const completeSignIn = async () => {
       const authError = searchParams.get("error_description") || searchParams.get("error")
       if (authError) {
-        if (active) setError(authError.replace(/\+/g, " "))
+        if (active) {
+          try {
+            setError(decodeURIComponent(authError.replace(/\+/g, " ")))
+          } catch {
+            setError(authError.replace(/\+/g, " "))
+          }
+        }
         return
       }
 
@@ -62,7 +70,7 @@ function AuthCallbackContent() {
     return () => {
       active = false
     }
-  }, [router, searchParams])
+  }, [searchParams])
 
   if (error) {
     return (

@@ -135,6 +135,11 @@ TrendsTracker/
 Create a `.env.local` file in the root directory. You will need a Google App Password to enable the contact form email functionality.
 
 ```env
+# --- Supabase Authentication ---
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
 # --- Nodemailer Configuration ---
 # Your Gmail Address
 EMAIL_USER=pkrish2304@gmail.com
@@ -146,6 +151,24 @@ EMAIL_PASSWORD=your_16_character_app_password_here
 # --- Other Variables ---
 NEXT_PUBLIC_API_URL=http://localhost:3000/api
 ```
+
+### Supabase authentication setup
+
+1. In Supabase, enable the Email provider. Enable Google and/or GitHub only after
+   configuring their provider credentials.
+2. In **Authentication → URL Configuration**, set the Site URL to the deployed
+   app URL and add these Redirect URLs:
+   - `http://localhost:3000/auth/callback`
+   - `https://your-deployed-domain/auth/callback`
+3. Set `NEXT_PUBLIC_APP_URL` to the same deployed URL in the hosting provider's
+   environment variables, then redeploy.
+4. In the Google/GitHub developer console, use the provider callback URL shown
+   in Supabase (**Authentication → Providers**). Do not use the app's
+   `/auth/callback` URL as the provider callback URL.
+
+The app exchanges the Supabase PKCE code at `/auth/callback`. Authorization
+codes are single-use, so do not refresh that callback page while a sign-in is
+being completed.
 
 ---
 

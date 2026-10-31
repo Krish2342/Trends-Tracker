@@ -51,11 +51,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const formatAuthError = (err: any, fallback: string): string => {
+  const formatAuthError = (err: unknown, fallback: string): string => {
     if (!err) return fallback
-    const msg = err.message || ""
+    const msg = err instanceof Error
+      ? err.message
+      : typeof err === "object" && err !== null && "message" in err && typeof err.message === "string"
+        ? err.message
+        : ""
     if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
       return "Unable to connect to the authentication server. Please check your internet connection or try again."
+    }
+    if (msg.toLowerCase().includes("invalid login credentials")) {
+      return "Incorrect email or password."
+    }
+    if (msg.toLowerCase().includes("email not confirmed")) {
+      return "Please confirm your email address before signing in."
     }
     return msg || fallback
   }
@@ -84,32 +94,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
       if (error) throw error
       return { success: true }
-    } catch (err: any) {
+    } catch (err: unknown) {
       return { success: false, error: formatAuthError(err, "Login failed") }
     }
   }
 
   const signup = async (name: string, email: string, password: string) => {
     try {
+      const normalizedName = name.trim()
+      const normalizedEmail = email.trim().toLowerCase()
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: normalizedEmail,
         password,
         options: {
-          data: { name },
+          data: { name: normalizedName },
           emailRedirectTo: typeof window !== 'undefined'
             ? `${window.location.origin}/auth/callback?next=${encodeURIComponent("/")}`
             : undefined,
         }
       })
       if (error) throw error
+      if (!data.user) {
+        return { success: false, error: "Account creation did not return a user. Please try again." }
+      }
+      if (data.user.identities?.length === 0) {
+        return { success: false, error: "An account with this email already exists. Please sign in instead." }
+      }
       return {
         success: true,
         needsEmailVerification: !data.session && !!data.user
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       return { success: false, error: formatAuthError(err, "Signup failed") }
     }
   }
@@ -133,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         window.location.href = data.url
       }
       return { success: true }
-    } catch (err: any) {
+    } catch (err: unknown) {
       return { success: false, error: formatAuthError(err, `${provider} login failed`) }
     }
   }
